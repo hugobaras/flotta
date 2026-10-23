@@ -1,9 +1,21 @@
+import { BandeauPublic } from "./ui";
+
 export default function Home() {
   return (
-    <main>
-      <h1>Transport</h1>
-      <p>Scannez le QR code de votre camion pour commencer le contrôle avant départ.</p>
-      <a href="/c/demo">Camion de démonstration</a> · <a href="/connexion">Espace exploitant</a>
-    </main>
+    <div className="public">
+      <BandeauPublic />
+      <main className="public-body">
+        <div className="auth">
+          <div className="stack">
+            <h1>Contrôle avant départ</h1>
+            <p className="muted" style={{ marginTop: 8 }}>Chauffeur : scannez le QR code collé dans votre cabine pour contrôler votre camion.</p>
+          </div>
+          <div style={{ display: "grid", gap: 12 }}>
+            <a className="btn btn-primary" href="/connexion">Espace exploitant</a>
+            <a className="btn" href="/c/demo">Camion de démonstration</a>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

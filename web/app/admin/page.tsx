@@ -1,71 +1,140 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { dateHeure, Etat, Macaron, Plaque, Statut } from "../ui";
 
-type Ligne = { vehicle_id: number; plaque: string; statut: string; controle: { id: number; conducteur: string; created_at: string } | null };
+type Ligne = { vehicle_id: number; plaque: string; statut: Statut; controle: { id: number; conducteur: string; created_at: string } | null };
 type Rappels = { heure_rappel: string; vehicules: { id: number; plaque: string }[] };
+type Filtre = "traiter" | "controle" | "tous";
 
-const LIBELLES: Record<string, string> = { controle: "Contrôlé", non_controle: "Non contrôlé", defaut: "Défaut", bloque: "Bloqué" };
+const aujourdhui = () => new Date().toLocaleDateString("sv-SE"); // AAAA-MM-JJ, jour local
+const ORDRE: Statut[] = ["bloque", "defaut", "non_controle", "controle"];
+const MOTIFS = ["Défaut réparé", "Fausse alerte", "Vérifié par le garage"];
 
 export default function Admin() {
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(aujourdhui);
   const [lignes, setLignes] = useState<Ligne[] | null>(null);
   const [rappels, setRappels] = useState<Rappels | null>(null);
+  const [filtre, setFiltre] = useState<Filtre>("traiter");
+  const [ouvert, setOuvert] = useState<number | null>(null);
+  const [motif, setMotif] = useState("");
+  const [erreur, setErreur] = useState("");
 
-  async function charger() {
+  const charger = useCallback(async () => {
     const r = await fetch(`/api/admin/tableau${date ? `?date=${date}` : ""}`);
     if (r.status === 401) return (window.location.href = "/connexion");
     setLignes((await r.json()).vehicules);
     setRappels(await (await fetch("/api/admin/rappels")).json());
-  }
+  }, [date]);
 
   useEffect(() => {
     charger();
-  }, [date]);
+  }, [charger]);
 
-  async function debloquer(l: Ligne) {
-    const commentaire = window.prompt(`Pourquoi débloquer ${l.plaque} ? (obligatoire)`);
-    if (!commentaire?.trim()) return;
-    const r = await fetch(`/api/admin/vehicules/${l.vehicle_id}/debloquer`, {
+  function ouvrir(id: number) {
+    setOuvert(ouvert === id ? null : id);
+    setMotif("");
+    setErreur("");
+  }
+
+  async function debloquer(e: React.FormEvent, id: number) {
+    e.preventDefault();
+    const r = await fetch(`/api/admin/vehicules/${id}/debloquer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ commentaire }),
+      body: JSON.stringify({ commentaire: motif }),
     });
-    if (!r.ok) window.alert("Déblocage impossible.");
+    if (!r.ok) return setErreur("Déblocage impossible. Vérifiez le motif et réessayez.");
+    setOuvert(null);
     charger();
   }
 
-  async function deconnexion() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/connexion";
-  }
+  if (!lignes) return <p className="muted">Chargement…</p>;
 
-  if (!lignes) return <p>Chargement…</p>;
+  const aTraiter = lignes.filter((l) => l.statut !== "controle");
+  const controles = lignes.filter((l) => l.statut === "controle");
+  const visibles = (filtre === "traiter" ? aTraiter : filtre === "controle" ? controles : lignes)
+    .slice()
+    .sort((a, b) => ORDRE.indexOf(a.statut) - ORDRE.indexOf(b.statut) || a.plaque.localeCompare(b.plaque));
+  const jourCourant = date === aujourdhui();
 
   return (
-    <main>
-      <h1>Tableau de bord</h1>
-      <label>
-        Jour : <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      </label>{" "}
-      <button onClick={deconnexion}>Se déconnecter</button>
-      {rappels && rappels.vehicules.length > 0 && (
-        <p role="alert">
-          Sans contrôle depuis {rappels.heure_rappel} : {rappels.vehicules.map((v) => v.plaque).join(", ")}
-        </p>
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Tableau de bord</h1>
+          <p>État de la flotte {jourCourant ? "aujourd'hui" : `le ${new Date(date).toLocaleDateString("fr-FR")}`}.</p>
+        </div>
+        <input className="input" type="date" aria-label="Jour affiché" value={date} onChange={(e) => setDate(e.target.value || aujourdhui())} />
+      </div>
+
+      {rappels && rappels.vehicules.length > 0 && jourCourant && (
+        <div className="notice" role="status">
+          <span><strong>{rappels.vehicules.length} camion{rappels.vehicules.length > 1 ? "s" : ""} sans contrôle depuis {rappels.heure_rappel}</strong> : {rappels.vehicules.map((v) => v.plaque).join(", ")}</span>
+        </div>
       )}
-      <table>
-        <tbody>
-          {lignes.map((l) => (
-            <tr key={l.vehicle_id}>
-              <td>{l.plaque}</td>
-              <td>{LIBELLES[l.statut]}</td>
-              <td>{l.controle && <a href={`/admin/controles/${l.controle.id}`}>{l.controle.conducteur}</a>}</td>
-              <td>{l.statut === "bloque" && <button onClick={() => debloquer(l)}>Débloquer</button>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </main>
+
+      <div className="filtres" role="group" aria-label="Afficher">
+        <button className="filtre" aria-pressed={filtre === "traiter"} onClick={() => setFiltre("traiter")}>À traiter <span className="count">{aTraiter.length}</span></button>
+        <button className="filtre" aria-pressed={filtre === "controle"} onClick={() => setFiltre("controle")}><Macaron statut="controle" />Contrôlés <span className="count">{controles.length}</span></button>
+        <button className="filtre" aria-pressed={filtre === "tous"} onClick={() => setFiltre("tous")}>Tous <span className="count">{lignes.length}</span></button>
+      </div>
+
+      {visibles.length === 0 ? (
+        <div className="rack-empty">
+          <strong>{filtre === "traiter" ? "Tout est en ordre" : "Aucun camion"}</strong>
+          {filtre === "traiter" ? "Aucun camion bloqué, en défaut ou sans contrôle." : "Aucun véhicule dans cette liste."}
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table className="rack rack-cards">
+            <thead>
+              <tr><th>Camion</th><th>État</th><th>Dernier contrôle</th><th><span className="sr-only">Actions</span></th></tr>
+            </thead>
+            <tbody>
+              {visibles.map((l) => (
+                <Fragment key={l.vehicle_id}>
+                  <tr>
+                    <td><Plaque size="lg">{l.plaque}</Plaque></td>
+                    <td><Etat statut={l.statut} /></td>
+                    <td className="full">
+                      {l.controle ? (
+                        <>
+                          <Link className="cell-link" href={`/admin/controles/${l.controle.id}`}>{l.controle.conducteur}</Link>
+                          <span className="muted"> · {dateHeure(l.controle.created_at)}</span>
+                        </>
+                      ) : <span className="muted">Aucun contrôle ce jour</span>}
+                    </td>
+                    <td className="right full">
+                      {l.statut === "bloque" && (
+                        <button className="btn btn-primary btn-sm" aria-expanded={ouvert === l.vehicle_id} onClick={() => ouvrir(l.vehicle_id)}>Débloquer</button>
+                      )}
+                    </td>
+                  </tr>
+                  {ouvert === l.vehicle_id && (
+                    <tr className="deblocage">
+                      <td colSpan={4} className="full">
+                        <form onSubmit={(e) => debloquer(e, l.vehicle_id)}>
+                          <div className="chips" role="group" aria-label="Motifs fréquents">
+                            {MOTIFS.map((m) => <button type="button" key={m} className="chip" onClick={() => setMotif(m)}>{m}</button>)}
+                          </div>
+                          <div className="row">
+                            <input className="input" aria-label={`Motif du déblocage de ${l.plaque}`} placeholder="Motif du déblocage (obligatoire)" value={motif} onChange={(e) => setMotif(e.target.value)} minLength={3} maxLength={1000} required autoFocus />
+                            <button type="submit" className="btn btn-primary" disabled={motif.trim().length < 3}>Confirmer</button>
+                            <button type="button" className="btn" onClick={() => setOuvert(null)}>Annuler</button>
+                          </div>
+                          {erreur && <p role="alert" style={{ color: "var(--rouge)", fontWeight: 500 }}>{erreur}</p>}
+                        </form>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }

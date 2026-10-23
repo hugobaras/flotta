@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Coche, dateHeure, Etat, Plaque } from "../../../ui";
 
 type Point = { id: number; libelle: string; critique: boolean; ok: boolean; commentaire: string };
 type Detail = {
@@ -18,7 +20,7 @@ export default function DetailControle({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     fetch(`/api/admin/controles/${id}`).then(async (r) => {
       if (r.status === 401) return (window.location.href = "/connexion");
-      if (!r.ok) return setErreur("Contrôle introuvable.");
+      if (!r.ok) return setErreur("Ce contrôle est introuvable.");
       setD(await r.json());
     });
   }, [id]);
@@ -37,33 +39,75 @@ export default function DetailControle({ params }: { params: Promise<{ id: strin
           layers: [{ id: "osm", type: "raster", source: "osm" }],
         },
       });
-      new maplibregl.Marker().setLngLat([d.lng!, d.lat!]).addTo(m);
+      new maplibregl.Marker({ color: "#111418" }).setLngLat([d.lng!, d.lat!]).addTo(m);
       map = m;
     });
     return () => map?.remove();
   }, [d]);
 
-  if (erreur) return <p role="alert">{erreur}</p>;
-  if (!d) return <p>Chargement…</p>;
+  if (erreur) return <div className="notice danger" role="alert">{erreur}</div>;
+  if (!d) return <p className="muted">Chargement…</p>;
+
+  const defauts = d.reponses.filter((r) => !r.ok).length;
+  const annexes = d.photos.length > 0 || d.signature || d.lat !== null;
 
   return (
-    <main>
-      <a href="/admin/controles">← Contrôles</a>
-      <h1>{d.plaque}</h1>
-      <p><a href={`/api/admin/controles/${id}/pdf`}>Télécharger le PDF</a></p>
-      <p>{d.conducteur} · {new Date(d.created_at).toLocaleString("fr-FR")}{d.defaut_critique && " · défaut critique"}</p>
-      <ul>
-        {d.reponses.map((r) => (
-          <li key={r.id}>
-            {r.ok ? "✓" : "✗"} {r.libelle}{r.critique && " (critique)"}{r.commentaire && ` : ${r.commentaire}`}
-          </li>
-        ))}
-      </ul>
-      {d.photos.map((p) => (
-        <a key={p} href={`/api/admin/photos/${p}`} target="_blank"><img src={`/api/admin/photos/${p}`} alt="Photo du contrôle" width={120} /></a>
-      ))}
-      {d.signature && <p><img src={d.signature} alt="Signature du conducteur" width={200} /></p>}
-      {d.lat !== null && <div ref={carte} style={{ height: 240, marginTop: 12 }} />}
-    </main>
+    <>
+      <p style={{ marginBottom: 20 }}><Link href="/admin/controles">Retour aux contrôles</Link></p>
+      <div className="detail-head">
+        <Plaque size="xl">{d.plaque}</Plaque>
+        {d.defaut_critique ? <Etat statut="bloque" label="Défaut critique" />
+          : defauts ? <Etat statut="defaut" label="Défaut" /> : <Etat statut="controle" label="Conforme" />}
+      </div>
+      <div className="page-head">
+        <p className="detail-meta" style={{ margin: 0 }}>{d.conducteur} · {dateHeure(d.created_at)}</p>
+        <a className="btn" href={`/api/admin/controles/${id}/pdf`}>Télécharger le PDF</a>
+      </div>
+
+      <div className={annexes ? "detail-grid" : undefined}>
+        <section className="section" style={{ marginTop: 12 }} aria-labelledby="points">
+          <h2 id="points">Points contrôlés <small>{defauts ? `${defauts} défaut${defauts > 1 ? "s" : ""}` : "Aucun défaut"}</small></h2>
+          <ul className="checks">
+            {d.reponses.map((r) => (
+              <li key={r.id} className={r.ok ? "ok" : "ko"}>
+                <Coche ok={r.ok} />
+                <span className="label-point">
+                  {r.libelle}
+                  {r.commentaire && <span className="note">{r.commentaire}</span>}
+                </span>
+                {r.critique && <span className="critique">Critique</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {annexes && (
+          <div>
+            {d.photos.length > 0 && (
+              <section className="section" style={{ marginTop: 12 }} aria-labelledby="photos">
+                <h2 id="photos">Photos</h2>
+                <div className="photo-grid">
+                  {d.photos.map((p) => (
+                    <a key={p} href={`/api/admin/photos/${p}`} target="_blank" rel="noreferrer"><img src={`/api/admin/photos/${p}`} alt="Photo jointe au contrôle" /></a>
+                  ))}
+                </div>
+              </section>
+            )}
+            {d.signature && (
+              <section className="section" style={{ marginTop: d.photos.length ? 28 : 12 }} aria-labelledby="sig">
+                <h2 id="sig">Signature</h2>
+                <div className="sig-box"><img src={d.signature} alt="Signature du conducteur" /></div>
+              </section>
+            )}
+            {d.lat !== null && (
+              <section className="section" style={{ marginTop: d.photos.length || d.signature ? 28 : 12 }} aria-labelledby="pos">
+                <h2 id="pos">Position <small className="num">{d.lat.toFixed(4)}, {d.lng!.toFixed(4)}</small></h2>
+                <div ref={carte} className="map" />
+              </section>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23T07:43:23.953405+00:00",
+  "title": "Design System: Flotta",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "primary",
+        "displayName": "Encre",
+        "canonical": "#111418",
+        "tonalRamp": [
+          "#20252d",
+          "#394351",
+          "#526174",
+          "#6d7f97",
+          "#919eb1",
+          "#b4beca",
+          "#d2d8df",
+          "#f0f2f4"
+        ]
+      },
+      "signal": {
+        "role": "accent",
+        "displayName": "Orange signal",
+        "canonical": "#e5560a",
+        "tonalRamp": [
+          "#491c03",
+          "#843206",
+          "#bf4808",
+          "#f55f10",
+          "#f7864a",
+          "#faad85",
+          "#fcceb6",
+          "#feefe7"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Papier chaud",
+        "canonical": "#fafaf9",
+        "tonalRamp": [
+          "#2a2a23",
+          "#4b4b3f",
+          "#6c6c5a",
+          "#8d8d77",
+          "#a9a998",
+          "#c5c5b9",
+          "#dcdcd5",
+          "#f3f3f1"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Encre 3",
+        "canonical": "#686d76",
+        "tonalRamp": [
+          "#242629",
+          "#414449",
+          "#5d626a",
+          "#7a808a",
+          "#9b9fa7",
+          "#bbbec3",
+          "#d6d8db",
+          "#f1f2f3"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Filet",
+        "canonical": "#e7e5e4",
+        "tonalRamp": [
+          "#282624",
+          "#494441",
+          "#69625e",
+          "#89807b",
+          "#a69f9b",
+          "#c3bebc",
+          "#dbd8d6",
+          "#f3f2f2"
+        ]
+      },
+      "state-ok": {
+        "role": "state",
+        "displayName": "Vert",
+        "canonical": "#1a7f4b",
+        "tonalRamp": [
+          "#0d4026",
+          "#177244",
+          "#22a562",
+          "#30d580",
+          "#62df9f",
+          "#95e9be",
+          "#c0f2d8",
+          "#eafbf2"
+        ]
+      },
+      "state-warn": {
+        "role": "state",
+        "displayName": "Ambre",
+        "canonical": "#c77700",
+        "tonalRamp": [
+          "#4c2e00",
+          "#8a5200",
+          "#c77700",
+          "#ff9b05",
+          "#ffb342",
+          "#ffcc80",
+          "#ffe0b2",
+          "#fff5e5"
+        ]
+      },
+      "state-danger": {
+        "role": "state",
+        "displayName": "Rouge",
+        "canonical": "#d3281b",
+        "tonalRamp": [
+          "#440d09",
+          "#7a1710",
+          "#b02117",
+          "#e32f21",
+          "#ea6258",
+          "#f1958e",
+          "#f6bfbb",
+          "#fceae8"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Titre de page, 34px léger."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Texte courant 15px, 17px côté chauffeur."
+      },
+      "plate": {
+        "displayName": "Plate",
+        "purpose": "Plaques et valeurs en Geist Mono."
+      }
+    },
+    "shadows": [
+      {
+        "name": "dialog",
+        "value": "0 24px 60px rgba(17,20,24,0.2), 0 2px 8px rgba(17,20,24,0.08)",
+        "purpose": "Dialogues uniquement."
+      },
+      {
+        "name": "field-focus",
+        "value": "0 0 0 3px rgba(17,20,24,0.12)",
+        "purpose": "Halo de focus des champs."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Toutes les transitions, 120 à 220ms; respect de prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-list",
+        "value": "640px"
+      },
+      {
+        "name": "nav-collapse",
+        "value": "760px"
+      },
+      {
+        "name": "detail-stack",
+        "value": "960px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Action principale, noire pleine.",
+      "html": "<button class=\"ds-btn-primary\">Enregistrer</button>",
+      "css": ".ds-btn-primary{font:inherit;font-weight:500;min-height:36px;padding:0 14px;border-radius:6px;cursor:pointer;transition:background .15s,border-color .15s;background:#111418;border:1px solid #111418;color:#fff}.ds-btn-primary:hover{background:#2a2f36;border-color:#2a2f36}.ds-btn-primary:focus-visible{outline:2px solid var(--ink,#111418);outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Action secondaire, blanc sur filet.",
+      "html": "<button class=\"ds-btn\">Exporter</button>",
+      "css": ".ds-btn{font:inherit;font-weight:500;min-height:36px;padding:0 14px;border-radius:6px;cursor:pointer;transition:background .15s,border-color .15s;background:#fff;border:1px solid #d3d0cd;color:#111418}.ds-btn:hover{border-color:#111418}.ds-btn:focus-visible{outline:2px solid var(--ink,#111418);outline-offset:2px}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Action discrète, par exemple Déconnexion.",
+      "html": "<button class=\"ds-btn-ghost\">Déconnexion</button>",
+      "css": ".ds-btn-ghost{font:inherit;font-weight:500;min-height:30px;padding:0 10px;font-size:14px;border:0;border-radius:6px;background:transparent;color:#44484f;cursor:pointer}.ds-btn-ghost:hover{background:#f0efed;color:#111418}.ds-btn-ghost:focus-visible{outline:2px solid var(--ink,#111418);outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Champ blanc sur filet fort, halo d'encre au focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Immatriculation\">",
+      "css": ".ds-input{font:inherit;width:100%;min-height:38px;padding:0 12px;border:1px solid #d3d0cd;border-radius:6px;background:#fff;color:#111418}.ds-input:hover{border-color:#686d76}.ds-input:focus-visible{outline:none;border-color:#111418;box-shadow:0 0 0 3px rgba(17,20,24,.12)}"
+    },
+    {
+      "name": "Top Navigation",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Bandeau en texte seul, marque orange, soulignement actif orange.",
+      "html": "<div class=\"ds-band\"><span class=\"ds-brand\"><i></i>Flotta</span><a class=\"ds-link\" aria-current=\"page\" href=\"#\">Tableau de bord</a><a class=\"ds-link\" href=\"#\">Contrôles</a><a class=\"ds-link\" href=\"#\">Checklists</a></div>",
+      "css": ".ds-band{display:flex;align-items:stretch;gap:28px;min-height:64px;border-bottom:1px solid #e7e5e4;background:#fafaf9;font-family:inherit}.ds-brand{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:650;letter-spacing:-.03em;margin-right:12px}.ds-brand i{width:12px;height:12px;border-radius:3px;background:#e5560a;rotate:45deg}.ds-link{display:flex;align-items:center;color:#686d76;text-decoration:none;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}.ds-link:hover{color:#111418}.ds-link[aria-current=page]{color:#111418;border-bottom-color:#e5560a}"
+    },
+    {
+      "name": "State (dot and word)",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "État: point de 8px et libellé.",
+      "html": "<span class=\"ds-etat\"><i class=\"ds-dot\"></i>Contrôlé</span> <span class=\"ds-etat\"><i class=\"ds-dot ds-bad\"></i>Bloqué</span>",
+      "css": ".ds-etat{display:inline-flex;align-items:center;gap:8px;font-weight:500;margin-right:16px}.ds-dot{width:8px;height:8px;border-radius:50%;background:#1a7f4b}.ds-bad{background:#d3281b}"
+    },
+    {
+      "name": "Plate",
+      "kind": "custom",
+      "refersTo": "plate",
+      "description": "Plaque en Geist Mono sur filet.",
+      "html": "<span class=\"ds-plaque\">AB-123-CD</span>",
+      "css": ".ds-plaque{display:inline-block;padding:2px 8px;border:1px solid #d3d0cd;border-radius:5px;background:#fff;font-family:'Geist Mono Variable',ui-monospace,Menlo,monospace;font-size:13.5px;font-weight:500;letter-spacing:.02em}"
+    },
+    {
+      "name": "Ruled List Row",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Ligne de liste sous filet, survol blanc.",
+      "html": "<div class=\"ds-row\"><span>Camion 12</span><span>Dernier contrôle 07:42</span></div>",
+      "css": ".ds-row{display:flex;justify-content:space-between;padding:16px 0;border-bottom:1px solid #e7e5e4;color:#111418}.ds-row:hover{background:#fff}"
+    },
+    {
+      "name": "Notice",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "Avis teinté.",
+      "html": "<div class=\"ds-notice\"><strong>Attention.</strong> Camion bloqué.</div>",
+      "css": ".ds-notice{background:#fff4e8;border:1px solid #f3cfa6;border-radius:8px;padding:12px 16px;color:#111418}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Encre & signal",
+    "overview": "Un outil de travail calme et précis : la typographie, l'espace et des filets fins font le design, pas des composants empilés. Le fond est un blanc cassé chaud, l'encre quasi noire, et un unique orange signal marque l'identité. Les états se lisent par un point coloré et un mot, jamais par un badge. La page est ouverte : pas de panneaux blancs encadrés, des lignes séparées par des filets, de grands titres légers au tracking serré.\n\nDeux registres partagent le même vocabulaire. Côté exploitant (ordinateur) : bandeau supérieur en texte seul, colonne de 1120px, listes aérées. Côté chauffeur (téléphone, plein jour, parfois avec des gants) : même encre et mêmes filets, mais cibles de 52 à 56px, texte de 17px, une barre de validation fixe en bas.",
+    "keyCharacteristics": [
+      "Fond blanc cassé chaud, encre quasi noire, aucun mode sombre.",
+      "Un seul accent (orange signal), réservé à la marque et au soulignement de navigation active.",
+      "États vert / ambre / rouge en point de 8px + texte.",
+      "Boutons primaires noirs pleins, coins de 6px, pas d'ombre hors dialogue.",
+      "Geist Variable pour le texte, Geist Mono pour plaques et valeurs.",
+      "Listes à filets, sans cadres ni cartes."
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "body": "L'orange n'apparaît que sur le losange de marque et le soulignement actif de la navigation. Jamais sur du texte, un bouton ou un état.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dot And Word Rule",
+        "body": "Un état n'est jamais porté par la couleur seule : point de 8px plus libellé (\"Contrôlé\", \"Défaut\", \"Bloqué\", \"Non contrôlé\").",
+        "section": "colors"
+      },
+      {
+        "name": "The Tight Heading Rule",
+        "body": "Les titres ont un tracking négatif (-0.01em à -0.03em) et un poids 500 à 600, jamais plus.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Aucune ombre sur les boutons, listes, avis ou barres. Seul le dialogue en porte une.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** garder l'orange `#e5560a` pour le losange de marque et le soulignement actif seulement.",
+      "**Do** coupler tout état à un point et à un mot.",
+      "**Do** séparer les contenus par des filets de 1px (`hairline`) plutôt que par des cadres.",
+      "**Do** mettre plaques et valeurs en Geist Mono, le reste en Geist.",
+      "**Do** utiliser des boutons primaires noirs, coins de 6px, sans ombre.",
+      "**Do** respecter `prefers-reduced-motion` et un focus visible de 2px en encre."
+    ],
+    "donts": [
+      "**Don't** ajouter une barre latérale, des cartes blanches arrondies, des badges ou des icônes décoratives.",
+      "**Don't** introduire une teinte d'accent supplémentaire (indigo, bleu) ni un mode sombre.",
+      "**Don't** imiter une vraie plaque d'immatriculation ni un macaron.",
+      "**Don't** ajouter une ombre hors dialogue.",
+      "**Don't** utiliser de capitales espacées ni de petits textes de surtitre."
+    ]
+  }
+}
