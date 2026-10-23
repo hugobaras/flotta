@@ -81,3 +81,9 @@ Module isolé `api/app/regulations/` (règlement CE 561/2006), intégré à l'op
 - Suivi : le planning affiche, par arrêt, le statut en direct, la signature et les photos, un retard (heure prévue dépassée de plus de 15 minutes et arrêt pas atteint) et un résumé (livrées, sur place, impossibles, en retard) ; il se rafraîchit toutes les 30 secondes.
 - Les statuts sont dans un journal séparé du plan : modifier le plan après publication ne les efface pas, et une commande livrée ne redevient jamais « planifiée ».
 - Limites : la position n'est enregistrée qu'à chaque changement de statut (pas de suivi GPS continu) ; le « retard » est celui par rapport à l'heure prévue, sans recalcul d'arrivée en fonction de la position (étape 11).
+
+## Temps réel et replanification (étape 11)
+
+- **Retards** : `GET /api/admin/plans/{id}/suivi` recalcule les heures d'arrivée des arrêts restants à partir de la dernière position connue et du statut des arrêts ; une fenêtre horaire manquée est signalée dans le planning.
+- **Propositions** (`POST /plans/{id}/propositions`, types `retard`, `urgence`, `panne`) : 2 ou 3 solutions chiffrées (retards, retour au plus tard, kilomètres). Cet appel ne modifie rien ; seul `POST /plans/{id}/propositions/appliquer`, déclenché par un clic sur « Appliquer », change le plan, en une seule version annulable.
+- **Trafic** : abstraction `app/trafic.py` (HERE, TomTom), **désactivée par défaut**. Elle ne s'active qu'avec `TRAFIC_ACTIF=true` et une clé fournisseur ; sans cela, les durées du plan sont utilisées. Les appels HERE/TomTom sont testés avec des réponses simulées et n'ont jamais été exécutés contre le vrai service : à vérifier avant activation.

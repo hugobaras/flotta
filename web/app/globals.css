@@ -254,6 +254,7 @@ dialog.dialog[open] { animation: pop 0.22s var(--ease); }
 .frise .bloc.pause { background: repeating-linear-gradient(45deg, var(--gris) 0 3px, #d7dae0 3px 6px); }
 .pause-ligne { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line-strong); color: var(--ink-2); font-size: 14px; align-items: center; }
 .pause-ligne .heure { width: 48px; font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
+.solution { display: flex; gap: 16px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
 .conducteur-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 0 0; }
 .conducteur-ligne .select { width: auto; min-height: 32px; font-size: 14px; }
 details.restants { margin-bottom: 24px; }
