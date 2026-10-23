@@ -6,7 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .auth import current_user, router as auth_router
-from .checklists import CHECKLIST
+from .checklist_routes import router as checklist_router
+from .checklists import active_items, create_default_template
 from .db import SessionLocal, get_db
 from .models import Check, Company, User, Vehicle
 
@@ -20,6 +21,7 @@ def seed_demo():
         company = Company(nom="Société démo")
         db.add(company)
         db.flush()
+        create_default_template(db, company.id)
         db.add(Vehicle(company_id=company.id, plaque="AB-123-CD", token=DEMO_TOKEN))
         db.commit()
 
@@ -32,6 +34,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Transport SaaS", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(checklist_router)
 
 
 def vehicle_by_token(token: str, db: Session) -> Vehicle:
@@ -49,14 +52,22 @@ def health():
 # --- Routes chauffeur : pas de compte, le jeton du QR code fait foi ---
 
 
+def _items_or_409(db: Session, v: Vehicle):
+    items = active_items(db, v.company_id, v.type)
+    if not items:
+        raise HTTPException(409, "Aucune checklist configurée pour ce véhicule")
+    return items
+
+
 @app.get("/api/controle/{token}")
 def get_controle(token: str, db: Session = Depends(get_db)):
     v = vehicle_by_token(token, db)
-    return {"plaque": v.plaque, "bloque": v.bloque, "checklist": CHECKLIST}
+    checklist = [{"id": i.id, "libelle": i.libelle, "critique": i.critique} for i in _items_or_409(db, v)]
+    return {"plaque": v.plaque, "bloque": v.bloque, "checklist": checklist}
 
 
 class Reponse(BaseModel):
-    id: str
+    id: int
     ok: bool
     commentaire: str = ""
 
@@ -69,18 +80,17 @@ class ControleIn(BaseModel):
 @app.post("/api/controle/{token}", status_code=201)
 def post_controle(token: str, body: ControleIn, db: Session = Depends(get_db)):
     v = vehicle_by_token(token, db)
-    critiques = {i["id"] for i in CHECKLIST if i["critique"]}
-    answered = {r.id for r in body.reponses}
-    if answered != {i["id"] for i in CHECKLIST}:
+    items = {i.id: i for i in _items_or_409(db, v)}
+    if sorted(r.id for r in body.reponses) != sorted(items):
         raise HTTPException(422, "Tous les points de la checklist doivent être renseignés")
-    defaut = any(not r.ok and r.id in critiques for r in body.reponses)
-    check = Check(
-        company_id=v.company_id,
-        vehicle_id=v.id,
-        conducteur=body.conducteur,
-        reponses=[r.model_dump() for r in body.reponses],
-        defaut_critique=defaut,
-    )
+    snapshot = [
+        {"id": r.id, "libelle": items[r.id].libelle, "critique": items[r.id].critique,
+         "ok": r.ok, "commentaire": r.commentaire}
+        for r in body.reponses
+    ]
+    defaut = any(not r["ok"] and r["critique"] for r in snapshot)
+    check = Check(company_id=v.company_id, vehicle_id=v.id, conducteur=body.conducteur,
+                  reponses=snapshot, defaut_critique=defaut)
     db.add(check)
     if defaut:
         v.bloque = True
@@ -104,7 +114,7 @@ def list_controles(user: User = Depends(current_user), db: Session = Depends(get
     )
     return [
         {"id": c.id, "vehicle_id": c.vehicle_id, "conducteur": c.conducteur,
-         "defaut_critique": c.defaut_critique, "created_at": c.created_at}
+         "defaut_critique": c.defaut_critique, "created_at": c.created_at, "reponses": c.reponses}
         for c in rows
     ]
 

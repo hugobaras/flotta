@@ -32,7 +32,7 @@ export default function Admin() {
   return (
     <main>
       <h1>Véhicules</h1>
-      <button onClick={deconnexion}>Se déconnecter</button>
+      <a href="/admin/checklists">Checklists</a> <button onClick={deconnexion}>Se déconnecter</button>
       <ul>
         {vehicules.map((v) => (
           <li key={v.id}>
