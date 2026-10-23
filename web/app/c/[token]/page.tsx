@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 
-type Item = { id: string; libelle: string; critique: boolean };
+type Item = { id: number; libelle: string; critique: boolean };
 type Controle = { plaque: string; bloque: boolean; checklist: Item[] };
 
 export default function Controle({ params }: { params: Promise<{ token: string }> }) {
@@ -10,7 +10,7 @@ export default function Controle({ params }: { params: Promise<{ token: string }
   const [data, setData] = useState<Controle | null>(null);
   const [erreur, setErreur] = useState("");
   const [conducteur, setConducteur] = useState("");
-  const [ko, setKo] = useState<Record<string, boolean>>({});
+  const [ko, setKo] = useState<Record<number, boolean>>({});
   const [resultat, setResultat] = useState("");
 
   useEffect(() => {
