@@ -1,15 +1,19 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel
+from datetime import datetime, timedelta, timezone
+
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .auth import current_user, router as auth_router
+from . import photos
 from .checklist_routes import router as checklist_router
 from .checklists import active_items, create_default_template
 from .db import SessionLocal, get_db
-from .models import Check, Company, User, Vehicle
+from .exploitation import router as exploitation_router
+from .models import Check, CheckPhoto, Company, User, Vehicle
 
 DEMO_TOKEN = "demo"
 
@@ -35,6 +39,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Transport SaaS", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(checklist_router)
+app.include_router(exploitation_router)
 
 
 def vehicle_by_token(token: str, db: Session) -> Vehicle:
@@ -75,6 +80,17 @@ class Reponse(BaseModel):
 class ControleIn(BaseModel):
     conducteur: str
     reponses: list[Reponse]
+    signature: str | None = Field(default=None, max_length=300_000)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def check_extras(self):
+        if self.signature and not self.signature.startswith("data:image/png;base64,"):
+            raise ValueError("Signature : PNG attendu")
+        if (self.lat is None) != (self.lng is None):
+            raise ValueError("Position incomplète")
+        return self
 
 
 @app.post("/api/controle/{token}", status_code=201)
@@ -90,12 +106,40 @@ def post_controle(token: str, body: ControleIn, db: Session = Depends(get_db)):
     ]
     defaut = any(not r["ok"] and r["critique"] for r in snapshot)
     check = Check(company_id=v.company_id, vehicle_id=v.id, conducteur=body.conducteur,
-                  reponses=snapshot, defaut_critique=defaut)
+                  reponses=snapshot, defaut_critique=defaut, has_defaut=any(not r["ok"] for r in snapshot),
+                  signature=body.signature, lat=body.lat, lng=body.lng)
     db.add(check)
     if defaut:
         v.bloque = True
     db.commit()
     return {"id": check.id, "defaut_critique": defaut, "bloque": v.bloque}
+
+
+PHOTO_WINDOW = timedelta(hours=1)  # on ne peut ajouter des photos qu'au contrôle qu'on vient d'envoyer
+
+
+@app.post("/api/controle/{token}/{check_id}/photos", status_code=201)
+async def post_photo(token: str, check_id: int, photo: UploadFile = File(), db: Session = Depends(get_db)):
+    v = vehicle_by_token(token, db)
+    check = db.scalar(select(Check).where(Check.id == check_id, Check.vehicle_id == v.id))
+    if not check:
+        raise HTTPException(404, "Contrôle inconnu")
+    created = check.created_at.replace(tzinfo=timezone.utc) if check.created_at.tzinfo is None else check.created_at
+    if datetime.now(timezone.utc) - created > PHOTO_WINDOW:
+        raise HTTPException(403, "Délai d'ajout de photos dépassé")
+    count = len(db.scalars(select(CheckPhoto.id).where(CheckPhoto.check_id == check.id)).all())
+    if count >= photos.MAX_PER_CHECK:
+        raise HTTPException(409, "Nombre maximal de photos atteint")
+    data = await photo.read(photos.MAX_BYTES + 1)
+    if len(data) > photos.MAX_BYTES:
+        raise HTTPException(413, "Photo trop lourde (5 Mo maximum)")
+    ext = photos.detect_ext(data)
+    if not ext:
+        raise HTTPException(415, "Format accepté : JPEG ou PNG")
+    row = CheckPhoto(company_id=v.company_id, check_id=check.id, fichier=photos.save(v.company_id, data, ext))
+    db.add(row)
+    db.commit()
+    return {"id": row.id}
 
 
 # --- Routes exploitant : toujours filtrées par company_id ---
@@ -105,26 +149,3 @@ def post_controle(token: str, body: ControleIn, db: Session = Depends(get_db)):
 def list_vehicules(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(Vehicle).where(Vehicle.company_id == user.company_id))
     return [{"id": v.id, "plaque": v.plaque, "token": v.token, "bloque": v.bloque} for v in rows]
-
-
-@app.get("/api/admin/controles")
-def list_controles(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    rows = db.scalars(
-        select(Check).where(Check.company_id == user.company_id).order_by(Check.created_at.desc())
-    )
-    return [
-        {"id": c.id, "vehicle_id": c.vehicle_id, "conducteur": c.conducteur,
-         "defaut_critique": c.defaut_critique, "created_at": c.created_at, "reponses": c.reponses}
-        for c in rows
-    ]
-
-
-@app.post("/api/admin/vehicules/{vehicle_id}/debloquer")
-def debloquer(vehicle_id: int, user: User = Depends(current_user),
-              db: Session = Depends(get_db)):
-    v = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.company_id == user.company_id))
-    if not v:
-        raise HTTPException(404, "Véhicule inconnu")
-    v.bloque = False
-    db.commit()
-    return {"id": v.id, "bloque": v.bloque}
