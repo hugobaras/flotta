@@ -39,7 +39,7 @@ export default function DetailControle({ params }: { params: Promise<{ id: strin
           layers: [{ id: "osm", type: "raster", source: "osm" }],
         },
       });
-      new maplibregl.Marker({ color: "#1d3f9e" }).setLngLat([d.lng!, d.lat!]).addTo(m);
+      new maplibregl.Marker({ color: "#111418" }).setLngLat([d.lng!, d.lat!]).addTo(m);
       map = m;
     });
     return () => map?.remove();

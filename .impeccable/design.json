@@ -1,119 +1,299 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-23T00:00:00Z",
+  "generatedAt": "2026-10-23T07:43:23.953405+00:00",
   "title": "Design System: Flotta",
   "extensions": {
     "colorMeta": {
-      "accent": { "role": "primary", "displayName": "Signal Indigo", "canonical": "#4054d6", "tonalRamp": ["#1c2470", "#2a3796", "#3343b4", "#4054d6", "#7381e2", "#a6aeee", "#d0d5f6", "#eceefc"] },
-      "page": { "role": "neutral", "displayName": "Cool Paper", "canonical": "#f6f7f9", "tonalRamp": ["#14171f", "#444b5b", "#667085", "#9aa2b3", "#c9ced9", "#e1e4ea", "#f1f2f6", "#f6f7f9"] },
-      "ok": { "role": "semantic", "displayName": "Cleared Green", "canonical": "#14663f", "tonalRamp": ["#0a3320", "#14663f", "#2f8a5c", "#5fae83", "#8fcaa8", "#b5dec4", "#e4f4ea", "#f2faf5"] },
-      "warn": { "role": "semantic", "displayName": "Caution Amber", "canonical": "#7a4f00", "tonalRamp": ["#3d2800", "#7a4f00", "#b07a12", "#d4a43d", "#e6c06c", "#efd48f", "#fcefd0", "#fef8e8"] },
-      "danger": { "role": "semantic", "displayName": "Stop Red", "canonical": "#b3261e", "tonalRamp": ["#5a130f", "#b3261e", "#d0524a", "#e08780", "#ebaca7", "#f0b9b4", "#fdeae8", "#fff8f7"] }
+      "ink": {
+        "role": "primary",
+        "displayName": "Encre",
+        "canonical": "#111418",
+        "tonalRamp": [
+          "#20252d",
+          "#394351",
+          "#526174",
+          "#6d7f97",
+          "#919eb1",
+          "#b4beca",
+          "#d2d8df",
+          "#f0f2f4"
+        ]
+      },
+      "signal": {
+        "role": "accent",
+        "displayName": "Orange signal",
+        "canonical": "#e5560a",
+        "tonalRamp": [
+          "#491c03",
+          "#843206",
+          "#bf4808",
+          "#f55f10",
+          "#f7864a",
+          "#faad85",
+          "#fcceb6",
+          "#feefe7"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Papier chaud",
+        "canonical": "#fafaf9",
+        "tonalRamp": [
+          "#2a2a23",
+          "#4b4b3f",
+          "#6c6c5a",
+          "#8d8d77",
+          "#a9a998",
+          "#c5c5b9",
+          "#dcdcd5",
+          "#f3f3f1"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Encre 3",
+        "canonical": "#686d76",
+        "tonalRamp": [
+          "#242629",
+          "#414449",
+          "#5d626a",
+          "#7a808a",
+          "#9b9fa7",
+          "#bbbec3",
+          "#d6d8db",
+          "#f1f2f3"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Filet",
+        "canonical": "#e7e5e4",
+        "tonalRamp": [
+          "#282624",
+          "#494441",
+          "#69625e",
+          "#89807b",
+          "#a69f9b",
+          "#c3bebc",
+          "#dbd8d6",
+          "#f3f2f2"
+        ]
+      },
+      "state-ok": {
+        "role": "state",
+        "displayName": "Vert",
+        "canonical": "#1a7f4b",
+        "tonalRamp": [
+          "#0d4026",
+          "#177244",
+          "#22a562",
+          "#30d580",
+          "#62df9f",
+          "#95e9be",
+          "#c0f2d8",
+          "#eafbf2"
+        ]
+      },
+      "state-warn": {
+        "role": "state",
+        "displayName": "Ambre",
+        "canonical": "#c77700",
+        "tonalRamp": [
+          "#4c2e00",
+          "#8a5200",
+          "#c77700",
+          "#ff9b05",
+          "#ffb342",
+          "#ffcc80",
+          "#ffe0b2",
+          "#fff5e5"
+        ]
+      },
+      "state-danger": {
+        "role": "state",
+        "displayName": "Rouge",
+        "canonical": "#d3281b",
+        "tonalRamp": [
+          "#440d09",
+          "#7a1710",
+          "#b02117",
+          "#e32f21",
+          "#ea6258",
+          "#f1958e",
+          "#f6bfbb",
+          "#fceae8"
+        ]
+      }
     },
     "typographyMeta": {
-      "headline": { "displayName": "Headline", "purpose": "Page titles (h1)." },
-      "title": { "displayName": "Title", "purpose": "Panel headings (h2)." },
-      "body": { "displayName": "Body", "purpose": "Default text, 15px." },
-      "label": { "displayName": "Label", "purpose": "Buttons, field labels, tabs, nav." },
-      "caption": { "displayName": "Caption", "purpose": "Table headers and badges." },
-      "driver-body": { "displayName": "Driver body", "purpose": "17px outdoor mobile reading." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "Titre de page, 34px léger."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Texte courant 15px, 17px côté chauffeur."
+      },
+      "plate": {
+        "displayName": "Plate",
+        "purpose": "Plaques et valeurs en Geist Mono."
+      }
     },
     "shadows": [
-      { "name": "resting", "value": "0 1px 2px rgba(20,23,31,0.06), 0 1px 1px rgba(20,23,31,0.04)", "purpose": "Panels, secondary buttons, selected tab." },
-      { "name": "overlay", "value": "0 12px 32px rgba(20,23,31,0.14), 0 2px 8px rgba(20,23,31,0.08)", "purpose": "Dialogs only." },
-      { "name": "submit-bar", "value": "0 -4px 16px rgba(20,23,31,0.06)", "purpose": "Fixed driver submit bar." }
+      {
+        "name": "dialog",
+        "value": "0 24px 60px rgba(17,20,24,0.2), 0 2px 8px rgba(17,20,24,0.08)",
+        "purpose": "Dialogues uniquement."
+      },
+      {
+        "name": "field-focus",
+        "value": "0 0 0 3px rgba(17,20,24,0.12)",
+        "purpose": "Halo de focus des champs."
+      }
     ],
     "motion": [
-      { "name": "ease", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "State transitions, 0.15s; dialog pop 0.2s. Reduced motion collapses all to 0.01ms." }
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Toutes les transitions, 120 à 220ms; respect de prefers-reduced-motion."
+      }
     ],
     "breakpoints": [
-      { "name": "phone", "value": "560px" },
-      { "name": "table-cards", "value": "640px" },
-      { "name": "shell-collapse", "value": "860px" },
-      { "name": "detail-collapse", "value": "960px" }
+      {
+        "name": "mobile-list",
+        "value": "640px"
+      },
+      {
+        "name": "nav-collapse",
+        "value": "760px"
+      },
+      {
+        "name": "detail-stack",
+        "value": "960px"
+      }
     ]
   },
   "components": [
     {
-      "name": "Primary Button", "kind": "button", "refersTo": "button-primary",
-      "description": "Main action in the operator UI.",
-      "html": "<button class=\"ds-btn ds-btn-primary\">Enregistrer</button>",
-      "css": ".ds-btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #c9ced9;background:#fff;color:#14171f;font:550 15px ui-sans-serif,system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 2px rgba(20,23,31,.06)}.ds-btn:hover{background:#f1f2f6}.ds-btn-primary{background:#4054d6;border-color:#4054d6;color:#fff}.ds-btn-primary:hover{background:#3343b4;border-color:#3343b4}.ds-btn-primary:active{background:#2a3796}.ds-btn:focus-visible{outline:2px solid #4054d6;outline-offset:2px}"
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Action principale, noire pleine.",
+      "html": "<button class=\"ds-btn-primary\">Enregistrer</button>",
+      "css": ".ds-btn-primary{font:inherit;font-weight:500;min-height:36px;padding:0 14px;border-radius:6px;cursor:pointer;transition:background .15s,border-color .15s;background:#111418;border:1px solid #111418;color:#fff}.ds-btn-primary:hover{background:#2a2f36;border-color:#2a2f36}.ds-btn-primary:focus-visible{outline:2px solid var(--ink,#111418);outline-offset:2px}"
     },
     {
-      "name": "Secondary Button", "kind": "button", "refersTo": "button-secondary",
-      "description": "Default neutral action.",
-      "html": "<button class=\"ds-btn2\">Exporter</button>",
-      "css": ".ds-btn2{height:36px;padding:0 14px;border-radius:8px;border:1px solid #c9ced9;background:#fff;color:#14171f;font:550 15px ui-sans-serif,system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 2px rgba(20,23,31,.06)}.ds-btn2:hover{background:#f1f2f6}.ds-btn2:focus-visible{outline:2px solid #4054d6;outline-offset:2px}"
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Action secondaire, blanc sur filet.",
+      "html": "<button class=\"ds-btn\">Exporter</button>",
+      "css": ".ds-btn{font:inherit;font-weight:500;min-height:36px;padding:0 14px;border-radius:6px;cursor:pointer;transition:background .15s,border-color .15s;background:#fff;border:1px solid #d3d0cd;color:#111418}.ds-btn:hover{border-color:#111418}.ds-btn:focus-visible{outline:2px solid var(--ink,#111418);outline-offset:2px}"
     },
     {
-      "name": "Text Input", "kind": "input", "refersTo": "input",
-      "description": "36px field with indigo focus halo.",
-      "html": "<input class=\"ds-input\" placeholder=\"Rechercher\">",
-      "css": ".ds-input{width:220px;height:36px;padding:0 12px;border-radius:8px;border:1px solid #c9ced9;background:#fff;color:#14171f;font:15px ui-sans-serif,system-ui,sans-serif}.ds-input:hover{border-color:#9aa2b3}.ds-input:focus-visible{outline:none;border-color:#4054d6;box-shadow:0 0 0 3px rgba(64,84,214,.2)}"
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Action discrète, par exemple Déconnexion.",
+      "html": "<button class=\"ds-btn-ghost\">Déconnexion</button>",
+      "css": ".ds-btn-ghost{font:inherit;font-weight:500;min-height:30px;padding:0 10px;font-size:14px;border:0;border-radius:6px;background:transparent;color:#44484f;cursor:pointer}.ds-btn-ghost:hover{background:#f0efed;color:#111418}.ds-btn-ghost:focus-visible{outline:2px solid var(--ink,#111418);outline-offset:2px}"
     },
     {
-      "name": "Status Badge (Bloqué)", "kind": "chip", "refersTo": "badge-danger",
-      "description": "State pill: icon plus word, never color alone.",
-      "html": "<span class=\"ds-badge\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polygon points=\"7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2\"/><line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\"/><line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\"/></svg>Bloqué</span>",
-      "css": ".ds-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 8px;border-radius:999px;font:600 13px/20px ui-sans-serif,system-ui,sans-serif;background:#fdeae8;color:#b3261e}"
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Champ blanc sur filet fort, halo d'encre au focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Immatriculation\">",
+      "css": ".ds-input{font:inherit;width:100%;min-height:38px;padding:0 12px;border:1px solid #d3d0cd;border-radius:6px;background:#fff;color:#111418}.ds-input:hover{border-color:#686d76}.ds-input:focus-visible{outline:none;border-color:#111418;box-shadow:0 0 0 3px rgba(17,20,24,.12)}"
     },
     {
-      "name": "Panel", "kind": "card", "refersTo": "panel",
-      "description": "White container with hairline border and head/body split.",
-      "html": "<div class=\"ds-panel\"><div class=\"ds-panel-head\">Contrôles récents</div><div class=\"ds-panel-body\">Contenu</div></div>",
-      "css": ".ds-panel{background:#fff;border:1px solid #e1e4ea;border-radius:12px;box-shadow:0 1px 2px rgba(20,23,31,.06);font:15px ui-sans-serif,system-ui,sans-serif;color:#14171f}.ds-panel-head{padding:14px 20px;border-bottom:1px solid #e1e4ea;font-weight:650;font-size:16px}.ds-panel-body{padding:20px}"
+      "name": "Top Navigation",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Bandeau en texte seul, marque orange, soulignement actif orange.",
+      "html": "<div class=\"ds-band\"><span class=\"ds-brand\"><i></i>Flotta</span><a class=\"ds-link\" aria-current=\"page\" href=\"#\">Tableau de bord</a><a class=\"ds-link\" href=\"#\">Contrôles</a><a class=\"ds-link\" href=\"#\">Checklists</a></div>",
+      "css": ".ds-band{display:flex;align-items:stretch;gap:28px;min-height:64px;border-bottom:1px solid #e7e5e4;background:#fafaf9;font-family:inherit}.ds-brand{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:650;letter-spacing:-.03em;margin-right:12px}.ds-brand i{width:12px;height:12px;border-radius:3px;background:#e5560a;rotate:45deg}.ds-link{display:flex;align-items:center;color:#686d76;text-decoration:none;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}.ds-link:hover{color:#111418}.ds-link[aria-current=page]{color:#111418;border-bottom-color:#e5560a}"
     },
     {
-      "name": "Nav Item (current)", "kind": "nav", "refersTo": "nav-item-current",
-      "description": "Sidebar link; current page uses Indigo Mist.",
-      "html": "<a class=\"ds-nav\" aria-current=\"page\" href=\"#\">Tableau de bord</a>",
-      "css": ".ds-nav{display:flex;align-items:center;height:36px;padding:0 10px;border-radius:8px;color:#444b5b;font:550 15px ui-sans-serif,system-ui,sans-serif;text-decoration:none}.ds-nav:hover{background:#f1f2f6;color:#14171f}.ds-nav[aria-current=page]{background:#eceefc;color:#2a3796}"
+      "name": "State (dot and word)",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "État: point de 8px et libellé.",
+      "html": "<span class=\"ds-etat\"><i class=\"ds-dot\"></i>Contrôlé</span> <span class=\"ds-etat\"><i class=\"ds-dot ds-bad\"></i>Bloqué</span>",
+      "css": ".ds-etat{display:inline-flex;align-items:center;gap:8px;font-weight:500;margin-right:16px}.ds-dot{width:8px;height:8px;border-radius:50%;background:#1a7f4b}.ds-bad{background:#d3281b}"
     },
     {
-      "name": "Plaque", "kind": "custom", "refersTo": "plaque",
-      "description": "License plate chip, tabular numerals.",
+      "name": "Plate",
+      "kind": "custom",
+      "refersTo": "plate",
+      "description": "Plaque en Geist Mono sur filet.",
       "html": "<span class=\"ds-plaque\">AB-123-CD</span>",
-      "css": ".ds-plaque{display:inline-block;padding:1px 8px;border:1px solid #c9ced9;border-radius:6px;background:#fff;font:650 15px ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em;font-variant-numeric:tabular-nums}"
+      "css": ".ds-plaque{display:inline-block;padding:2px 8px;border:1px solid #d3d0cd;border-radius:5px;background:#fff;font-family:'Geist Mono Variable',ui-monospace,Menlo,monospace;font-size:13.5px;font-weight:500;letter-spacing:.02em}"
     },
     {
-      "name": "Driver OK/KO Segment", "kind": "custom", "refersTo": "button-xl",
-      "description": "52px thumb target for outdoor use; selected KO shown.",
-      "html": "<button class=\"ds-seg\">Défaut</button>",
-      "css": ".ds-seg{min-height:52px;padding:0 24px;border-radius:10px;border:1.5px solid #b3261e;background:#fdeae8;color:#b3261e;font:650 17px ui-sans-serif,system-ui,sans-serif;cursor:pointer}.ds-seg:focus-visible{outline:2px solid #4054d6;outline-offset:2px}"
+      "name": "Ruled List Row",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Ligne de liste sous filet, survol blanc.",
+      "html": "<div class=\"ds-row\"><span>Camion 12</span><span>Dernier contrôle 07:42</span></div>",
+      "css": ".ds-row{display:flex;justify-content:space-between;padding:16px 0;border-bottom:1px solid #e7e5e4;color:#111418}.ds-row:hover{background:#fff}"
+    },
+    {
+      "name": "Notice",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "Avis teinté.",
+      "html": "<div class=\"ds-notice\"><strong>Attention.</strong> Camion bloqué.</div>",
+      "css": ".ds-notice{background:#fff4e8;border:1px solid #f3cfa6;border-radius:8px;padding:12px 16px;color:#111418}"
     }
   ],
   "narrative": {
-    "northStar": "Le Registre de Garage",
-    "overview": "Flotta plays the category standard straight for B2B SaaS: cool neutral greys, a single indigo accent, system UI type, tabular numerals, Lucide icons. It is light only, because the office is daylit and drivers work outdoors. Two registers share one set of tokens: a dense calm operator shell and a thumb-sized driver page. State is never carried by color alone.",
+    "northStar": "Encre & signal",
+    "overview": "Un outil de travail calme et précis : la typographie, l'espace et des filets fins font le design, pas des composants empilés. Le fond est un blanc cassé chaud, l'encre quasi noire, et un unique orange signal marque l'identité. Les états se lisent par un point coloré et un mot, jamais par un badge. La page est ouverte : pas de panneaux blancs encadrés, des lignes séparées par des filets, de grands titres légers au tracking serré.\n\nDeux registres partagent le même vocabulaire. Côté exploitant (ordinateur) : bandeau supérieur en texte seul, colonne de 1120px, listes aérées. Côté chauffeur (téléphone, plein jour, parfois avec des gants) : même encre et mêmes filets, mais cibles de 52 à 56px, texte de 17px, une barre de validation fixe en bas.",
     "keyCharacteristics": [
-      "Cool grey page, white surfaces, hairline borders; depth is mostly borders, not shadows.",
-      "One accent (indigo) for primary action, focus, current navigation and selection.",
-      "Semantic trio (green, amber, red), each as text on a tinted fill, always with icon plus label.",
-      "System font stack at modest sizes; weights 550 to 650 do the hierarchy work.",
-      "Tabular numerals on tables and plates.",
-      "No dark mode."
+      "Fond blanc cassé chaud, encre quasi noire, aucun mode sombre.",
+      "Un seul accent (orange signal), réservé à la marque et au soulignement de navigation active.",
+      "États vert / ambre / rouge en point de 8px + texte.",
+      "Boutons primaires noirs pleins, coins de 6px, pas d'ombre hors dialogue.",
+      "Geist Variable pour le texte, Geist Mono pour plaques et valeurs.",
+      "Listes à filets, sans cadres ni cartes."
     ],
     "rules": [
-      { "name": "The One Indigo Rule", "body": "Indigo means \"act here\" or \"you are here\". It never encodes status.", "section": "colors" },
-      { "name": "The Never Color Alone Rule", "body": "A state is color plus icon plus text; the badge and alert components enforce it.", "section": "colors" },
-      { "name": "The Tabular Rule", "body": "Tables, counts, times and plates use tabular numerals.", "section": "typography" },
-      { "name": "The Flat Until Floating Rule", "body": "Only dialogs get the overlay shadow; everything else is border-defined.", "section": "elevation" }
+      {
+        "name": "The One Signal Rule",
+        "body": "L'orange n'apparaît que sur le losange de marque et le soulignement actif de la navigation. Jamais sur du texte, un bouton ou un état.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dot And Word Rule",
+        "body": "Un état n'est jamais porté par la couleur seule : point de 8px plus libellé (\"Contrôlé\", \"Défaut\", \"Bloqué\", \"Non contrôlé\").",
+        "section": "colors"
+      },
+      {
+        "name": "The Tight Heading Rule",
+        "body": "Les titres ont un tracking négatif (-0.01em à -0.03em) et un poids 500 à 600, jamais plus.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Aucune ombre sur les boutons, listes, avis ou barres. Seul le dialogue en porte une.",
+        "section": "elevation"
+      }
     ],
     "dos": [
-      "Do pair every state color with a Lucide icon and a text label.",
-      "Do keep indigo for actions, focus and current location only.",
-      "Do use tabular numerals for figures and plates.",
-      "Do size driver controls to at least 52px with 1.5px borders and 17px text.",
-      "Do keep light mode only.",
-      "Do use the system stack and Lucide icons at 14, 16, 18 or 20-22px."
+      "**Do** garder l'orange `#e5560a` pour le losange de marque et le soulignement actif seulement.",
+      "**Do** coupler tout état à un point et à un mot.",
+      "**Do** séparer les contenus par des filets de 1px (`hairline`) plutôt que par des cadres.",
+      "**Do** mettre plaques et valeurs en Geist Mono, le reste en Geist.",
+      "**Do** utiliser des boutons primaires noirs, coins de 6px, sans ombre.",
+      "**Do** respecter `prefers-reduced-motion` et un focus visible de 2px en encre."
     ],
     "donts": [
-      "Don't signal status with color alone.",
-      "Don't add a second accent hue or use semantic colors decoratively.",
-      "Don't put shadows on anything but panels, secondary buttons, the submit bar and dialogs.",
-      "Don't hide table columns off-screen on phones; use the card layout.",
-      "Don't load a webfont or add a dark theme."
+      "**Don't** ajouter une barre latérale, des cartes blanches arrondies, des badges ou des icônes décoratives.",
+      "**Don't** introduire une teinte d'accent supplémentaire (indigo, bleu) ni un mode sombre.",
+      "**Don't** imiter une vraie plaque d'immatriculation ni un macaron.",
+      "**Don't** ajouter une ombre hors dialogue.",
+      "**Don't** utiliser de capitales espacées ni de petits textes de surtitre."
     ]
   }
 }

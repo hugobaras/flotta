@@ -1,261 +1,240 @@
 ---
 name: Flotta
-description: Contrôle avant départ et exploitation de flotte poids lourds, sobre et neutre, un seul accent indigo.
+description: "Encre & signal : un outil de travail calme, typographique, sur fond blanc cassé chaud, avec un seul accent orange."
 colors:
-  accent: "#4054d6"
-  accent-hover: "#3343b4"
-  accent-pressed: "#2a3796"
-  accent-soft: "#eceefc"
-  page: "#f6f7f9"
-  surface: "#ffffff"
-  surface-sunken: "#f1f2f6"
-  border: "#e1e4ea"
-  border-strong: "#c9ced9"
-  ink: "#14171f"
-  ink-2: "#444b5b"
-  ink-3: "#667085"
-  neutral-chip: "#eceef2"
-  ok: "#14663f"
-  ok-bg: "#e4f4ea"
-  warn: "#7a4f00"
-  warn-bg: "#fcefd0"
-  danger: "#b3261e"
-  danger-bg: "#fdeae8"
+  paper: "#fafaf9"
+  white: "#ffffff"
+  ink: "#111418"
+  ink-2: "#44484f"
+  ink-3: "#686d76"
+  hairline: "#e7e5e4"
+  hairline-strong: "#d3d0cd"
+  signal: "#e5560a"
+  state-ok: "#1a7f4b"
+  state-warn: "#c77700"
+  state-danger: "#d3281b"
+  state-idle: "#9a9fa8"
+  notice-tint: "#fff4e8"
+  notice-line: "#f3cfa6"
+  danger-tint: "#fef1ef"
 typography:
+  display:
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "34px"
+    fontWeight: 500
+    lineHeight: 1.1
+    letterSpacing: "-0.03em"
   headline:
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
-    fontSize: "22px"
-    fontWeight: 650
-    lineHeight: 1.25
-    letterSpacing: "-0.01em"
-  title:
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
-    fontSize: "16px"
-    fontWeight: 650
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "20px"
+    fontWeight: 600
     lineHeight: 1.3
+    letterSpacing: "-0.02em"
+  title:
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: "-0.01em"
   body:
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.5
+    letterSpacing: "-0.006em"
   label:
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
-    fontSize: "14px"
-    fontWeight: 550
-    lineHeight: 1.5
-  caption:
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
-    fontSize: "13px"
-    fontWeight: 600
-    lineHeight: 1.5
-  driver-body:
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
-    fontSize: "17px"
-    fontWeight: 600
-    lineHeight: 1.35
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "13.5px"
+    fontWeight: 400
+    lineHeight: 1.4
+  plate:
+    fontFamily: "Geist Mono Variable, ui-monospace, SF Mono, Menlo, monospace"
+    fontSize: "13.5px"
+    fontWeight: 500
+    letterSpacing: "0.02em"
 rounded:
-  sm: "6px"
-  md: "8px"
-  lg: "12px"
-  pill: "999px"
+  sm: "5px"
+  md: "6px"
+  lg: "8px"
+  field-mobile: "10px"
+  dialog: "14px"
 spacing:
   xs: "8px"
-  sm: "12px"
-  md: "16px"
-  lg: "24px"
-  xl: "40px"
+  sm: "16px"
+  md: "24px"
+  lg: "40px"
+  xl: "56px"
 components:
   button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.surface}"
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.white}"
     rounded: "{rounded.md}"
-    height: "36px"
     padding: "0 14px"
+    height: "36px"
   button-primary-hover:
-    backgroundColor: "{colors.accent-hover}"
-  button-primary-active:
-    backgroundColor: "{colors.accent-pressed}"
+    backgroundColor: "#2a2f36"
   button-secondary:
-    backgroundColor: "{colors.surface}"
+    backgroundColor: "{colors.white}"
     textColor: "{colors.ink}"
     rounded: "{rounded.md}"
-    height: "36px"
     padding: "0 14px"
-  button-secondary-hover:
-    backgroundColor: "{colors.surface-sunken}"
-  button-danger:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.danger}"
-    rounded: "{rounded.md}"
     height: "36px"
-  button-xl:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.lg}"
-    height: "56px"
-  input:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    height: "36px"
-    padding: "0 12px"
-  badge-ok:
-    backgroundColor: "{colors.ok-bg}"
-    textColor: "{colors.ok}"
-    rounded: "{rounded.pill}"
-    padding: "2px 10px 2px 8px"
-  badge-warn:
-    backgroundColor: "{colors.warn-bg}"
-    textColor: "{colors.warn}"
-    rounded: "{rounded.pill}"
-  badge-danger:
-    backgroundColor: "{colors.danger-bg}"
-    textColor: "{colors.danger}"
-    rounded: "{rounded.pill}"
-  badge-neutral:
-    backgroundColor: "{colors.neutral-chip}"
+  button-ghost:
+    backgroundColor: "transparent"
     textColor: "{colors.ink-2}"
-    rounded: "{rounded.pill}"
-  panel:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.lg}"
-    padding: "20px"
-  nav-item-current:
-    backgroundColor: "{colors.accent-soft}"
-    textColor: "{colors.accent-pressed}"
     rounded: "{rounded.md}"
-    height: "36px"
-  plaque:
-    backgroundColor: "{colors.surface}"
+  button-danger:
+    backgroundColor: "{colors.state-danger}"
+    textColor: "{colors.white}"
+    rounded: "{rounded.md}"
+  input:
+    backgroundColor: "{colors.white}"
     textColor: "{colors.ink}"
+    rounded: "{rounded.md}"
+    padding: "0 12px"
+    height: "38px"
+  plate:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.ink}"
+    typography: "{typography.plate}"
     rounded: "{rounded.sm}"
-    padding: "1px 8px"
+    padding: "2px 8px"
+  notice:
+    backgroundColor: "{colors.notice-tint}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.lg}"
+    padding: "12px 16px"
 ---
 
 # Design System: Flotta
 
 ## Overview
 
-**Creative North Star: "Le Registre de Garage"**
+**Creative North Star: "Encre & signal"**
 
-Flotta plays the category standard straight for B2B SaaS: cool neutral greys, a single indigo accent, system UI type, tabular numerals, Lucide icons. It is light only, because the office is daylit and drivers work outdoors. Nothing performs; the interface is a legible ledger where the question "which trucks can leave?" is answered at a glance.
+Un outil de travail calme et précis : la typographie, l'espace et des filets fins font le design, pas des composants empilés. Le fond est un blanc cassé chaud, l'encre quasi noire, et un unique orange signal marque l'identité. Les états se lisent par un point coloré et un mot, jamais par un badge. La page est ouverte : pas de panneaux blancs encadrés, des lignes séparées par des filets, de grands titres légers au tracking serré.
 
-Two registers share one set of tokens. The operator shell is dense and calm: a 240px sidebar, white panels on a pale grey page, 36px controls, 15px text. The driver page is the same system scaled for thumbs, gloves and sunlight: 17px text, 52-56px targets, 1.5px borders, a fixed bottom submit bar.
-
-State is never carried by color alone. Every green, amber or red appears with a Lucide icon and a word.
+Deux registres partagent le même vocabulaire. Côté exploitant (ordinateur) : bandeau supérieur en texte seul, colonne de 1120px, listes aérées. Côté chauffeur (téléphone, plein jour, parfois avec des gants) : même encre et mêmes filets, mais cibles de 52 à 56px, texte de 17px, une barre de validation fixe en bas.
 
 **Key Characteristics:**
-- Cool grey page, white surfaces, hairline borders; depth is mostly borders, not shadows.
-- One accent (indigo) for primary action, focus, current navigation and selection.
-- Semantic trio (green, amber, red), each as a text color on a tinted fill, always with icon plus label.
-- System font stack at modest sizes; weights 550 to 650 do the hierarchy work.
-- Tabular numerals on tables and plates.
-- No dark mode (`color-scheme: light`).
+- Fond blanc cassé chaud, encre quasi noire, aucun mode sombre.
+- Un seul accent (orange signal), réservé à la marque et au soulignement de navigation active.
+- États vert / ambre / rouge en point de 8px + texte.
+- Boutons primaires noirs pleins, coins de 6px, pas d'ombre hors dialogue.
+- Geist Variable pour le texte, Geist Mono pour plaques et valeurs.
+- Listes à filets, sans cadres ni cartes.
 
 ## Colors
 
-A cool, near-neutral grey ground with one saturated indigo and three desaturated state colors.
+Palette neutre chaude, un accent, trois couleurs d'état utilitaires.
 
 ### Primary
-- **Signal Indigo** (#4054d6): primary buttons, links, focus ring and outline, caret, selection, checked switch, brand mark, drop-zone hover border.
-- **Deep Indigo** (#3343b4): hover for primary buttons and links. Pressed state and text on indigo tint is #2a3796.
-- **Indigo Mist** (#eceefc): current navigation item background and accent badge.
+- **Encre** (`ink`): texte, boutons primaires, contour de focus, soulignement des filtres actifs, cases cochées.
+- **Orange signal** (`signal`): losange de marque et soulignement de la page active dans la navigation. Rien d'autre.
 
 ### Neutral
-- **Cool Paper** (#f6f7f9): page background.
-- **White Sheet** (#ffffff): panels, sidebar, inputs, dialogs.
-- **Sunken Grey** (#f1f2f6): table headers, hover fills, signature box.
-- **Hairline** (#e1e4ea): panel and row dividers. **Firm Hairline** (#c9ced9): control borders, scrollbars, switch track.
-- **Ink** (#14171f): primary text. **Ink Secondary** (#444b5b). **Ink Tertiary** (#667085): hints, table headers, muted metadata.
-- **Quiet Chip** (#eceef2): neutral badge ("Non contrôlé").
+- **Papier chaud** (`paper`): fond de page, barre de validation chauffeur (à 92% d'opacité).
+- **Blanc** (`white`): champs, boutons secondaires, plaques, survol de ligne, dialogue.
+- **Encre 2** (`ink-2`): texte secondaire, boutons fantômes.
+- **Encre 3** (`ink-3`): légendes, indices, en-têtes de colonnes, liens de navigation au repos.
+- **Filet** (`hairline`): séparateurs de lignes et du bandeau. **Filet fort** (`hairline-strong`): contours de champs et boutons.
 
-### Semantic
-- **Cleared Green** (#14663f on #e4f4ea): contrôlé, success alerts, OK segment.
-- **Caution Amber** (#7a4f00 on #fcefd0): défaut, warning alerts.
-- **Stop Red** (#b3261e on #fdeae8): bloqué, critical defect, destructive actions, KO segment.
+### States
+- **Vert** (`state-ok`): contrôlé. **Ambre** (`state-warn`): défaut. **Rouge** (`state-danger`): bloqué, erreur, bouton destructif. **Gris** (`state-idle`): non contrôlé (anneau vide).
+- **Teinte d'avis** (`notice-tint`, `notice-line`) et **teinte de danger** (`danger-tint`): fonds des avis.
 
 ### Named Rules
-**The One Indigo Rule.** Indigo means "act here" or "you are here". It never encodes status.
-**The Never Color Alone Rule.** A state is color plus icon plus text; the badge and alert components enforce it.
+**The One Signal Rule.** L'orange n'apparaît que sur le losange de marque et le soulignement actif de la navigation. Jamais sur du texte, un bouton ou un état.
+**The Dot And Word Rule.** Un état n'est jamais porté par la couleur seule : point de 8px plus libellé ("Contrôlé", "Défaut", "Bloqué", "Non contrôlé").
 
 ## Typography
 
-**Display Font:** none. **Body Font:** system UI stack (`ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial`). No webfont is loaded.
+**Display / Body Font:** Geist Variable (repli ui-sans-serif, system-ui)
+**Label/Mono Font:** Geist Mono Variable (repli ui-monospace, SF Mono, Menlo)
 
-**Character:** neutral and native; it looks like the user's own OS, which suits a tool used all day.
+**Character:** Un sans géométrique neutre, léger sur les grands titres, avec un tracking négatif qui lui donne du poids sans graisse. La mono n'apparaît que pour ce qui se lit comme une donnée : plaques d'immatriculation.
 
 ### Hierarchy
-- **Headline** (650, 22px, 1.25, -0.01em): page titles (h1); balanced wrapping.
-- **Title** (650, 16px, 1.3): panel headings (h2); 14px/650 for h3.
-- **Body** (400, 15px, 1.5): default text. Driver surface 17px.
-- **Label** (550, 14px): field labels, buttons, tabs, nav.
-- **Caption** (600, 13px): table headers, badges; hints at 13px/400.
-- Driver: h1 result 24px, h2 18px, plate 24px/650.
+- **Display** (500, 34px, 1.1, -0.03em): titre de page; 28px sous 760px; 30px côté chauffeur; 36px sur l'écran de résultat.
+- **Headline** (600, 20px, -0.02em): titre de dialogue; 18px pour les sections chauffeur.
+- **Title** (600, 16px, 1.3): titres de section (h2) sous filet.
+- **Body** (400, 15px, 1.5): texte courant; 17px côté chauffeur. Chiffres tabulaires pour tableaux et compteurs.
+- **Label** (400, 13.5px à 14px): en-têtes de colonnes, indices, légendes en `ink-3`. Pas de capitales, pas d'espacement élargi.
+- **Plate** (Geist Mono 500, 13.5px, +0.02em): plaque d'immatriculation; 26px en grande plaque d'en-tête chauffeur.
 
 ### Named Rules
-**The Tabular Rule.** Tables, counts, times and plates use tabular numerals.
+**The Tight Heading Rule.** Les titres ont un tracking négatif (-0.01em à -0.03em) et un poids 500 à 600, jamais plus.
 
 ## Layout
 
-Operator pages sit in a two-column grid: 240px sticky sidebar plus a main column capped at 1180px with 32px/40px padding. Under 860px the sidebar becomes a sticky top bar with horizontally scrolling nav; under 560px nav shows icons only (40px squares). Tables under 640px collapse into stacked cards so no column hides off-screen. The detail page is a 1.4fr/1fr grid collapsing at 960px. Driver pages are a single 560px column with 16px side padding and 120px bottom room for the fixed submit bar.
+Colonne unique centrée de 1120px max, marges de 32px (16px sous 760px), padding vertical de 56px en haut. Les titres de page se placent en tête avec une action alignée à droite; sections espacées de 48px, titres de section sur un filet. Les listes sont des tableaux sans cadre: lignes de 16px de padding vertical, séparées par un filet, en-têtes `ink-3`. Sous 640px les lignes passent en piles flex ("rack-cards"). Les paramètres sont en deux colonnes (280px + reste, espace de 48px) qui s'empilent sous 760px. Le détail d'un contrôle est en 1.5fr / 1fr avec 64px d'espace, empilé sous 960px. Côté chauffeur : colonne de 600px, lignes de points pleine largeur, boutons OK / Défaut en deux colonnes de 54px de haut, barre de validation fixe en bas avec zone sûre.
 
-Spacing is a 4-based rhythm in practice: 8 / 12 / 16 / 20 / 24 gaps; panel bodies 20px; table cells 12px 16px; stacks 16px (24px for large).
+L'échelle d'espacement observée est 4, 8, 12, 16, 24, 32, 40, 48, 56.
 
 ## Elevation & Depth
 
-Mostly flat: hierarchy comes from white panels with 1px hairlines on a grey page. Shadows are minimal and structural.
+Plat par défaut. La profondeur vient des filets et d'un survol de ligne qui passe au blanc (débordant de 16px de chaque côté grâce à une ombre pleine sans flou). La seule ombre est celle du dialogue, qui flotte au-dessus d'un voile de 35% d'encre avec un flou de 2px. Le champ en focus reçoit un halo de 3px à 12% d'encre.
 
-- **Resting** (`0 1px 2px rgba(20,23,31,.06), 0 1px 1px rgba(20,23,31,.04)`): panels, secondary buttons, selected tab.
-- **Overlay** (`0 12px 32px rgba(20,23,31,.14), 0 2px 8px rgba(20,23,31,.08)`): dialogs only.
-- Fixed driver submit bar: `0 -4px 16px rgba(20,23,31,.06)` over a 96% white fill.
+### Shadow Vocabulary
+- **Dialogue** (`box-shadow: 0 24px 60px rgba(17,20,24,0.2), 0 2px 8px rgba(17,20,24,0.08)`): dialogues uniquement.
+- **Halo de focus de champ** (`box-shadow: 0 0 0 3px rgba(17,20,24,0.12)`): champs en focus.
 
 ### Named Rules
-**The Flat Until Floating Rule.** Only dialogs get the overlay shadow; everything else is border-defined.
+**The Flat-By-Default Rule.** Aucune ombre sur les boutons, listes, avis ou barres. Seul le dialogue en porte une.
 
 ## Shapes
 
-Gently rounded: 8px controls, 12px panels, dialogs and driver cards, 6px plates, full pills for badges and switches. Driver segmented buttons use 10px, the XL button 12px. Borders are 1px (1.5px on the driver page for outdoor legibility). Focus is a 2px indigo outline with 2px offset; fields swap to a 3px indigo 20% halo.
+Coins de 6px sur boutons et champs, 5px sur plaques et cases à cocher, 8px sur avis et miniatures, 14px sur dialogue. Côté chauffeur les cibles tactiles montent à 10px (champs, OK / Défaut, signature) et 12px (bouton de validation). Les filets sont de 1px; les soulignements actifs de 2px. Le point d'état est un cercle de 8px; l'état "non contrôlé" est un anneau vide de 1.5px. Le losange de marque est un carré de 12px à coins de 3px tourné de 45 degrés.
 
 ## Components
 
 ### Buttons
-- **Shape:** 8px radius, 36px high (30px small, 32px icon-only), 16px icons, 8px gap.
-- **Primary:** Signal Indigo fill, white text. Hover Deep Indigo, pressed #2a3796.
-- **Secondary (default):** white, firm hairline, resting shadow; hover Sunken Grey.
-- **Danger:** red text, soft red border; hover red tint. **Ghost:** transparent, secondary ink.
-- **XL (driver):** full width, 56px, 18px text, 12px radius. Disabled: 50% opacity.
+- **Shape:** coins de 6px, hauteur 36px (30px en petit, 56px en pleine largeur chauffeur).
+- **Primary:** encre pleine, texte blanc, padding 0 14px. Survol `#2a2f36`.
+- **Secondary:** fond blanc, filet fort; le survol assombrit le contour en encre.
+- **Ghost:** transparent, texte `ink-2`; fond gris chaud au survol.
+- **Danger:** rouge plein, pour les actions destructives et le "Défaut" sélectionné.
+- **Disabled:** opacité 0.4. Transition de 150ms, courbe `cubic-bezier(0.22,1,0.36,1)`.
 
 ### Inputs / Fields
-- 36px high, white, firm hairline, 8px radius; hover border #9aa2b3; focus indigo border plus halo. Driver variant 52px, 17px text. Switch: 34x20 pill, indigo when on. Labels 14px/550 above, hints 13px below.
-
-### Badges and alerts
-- Pill badges with 14px icon and 13px/600 text: ok, warn, danger, neutral, accent. Status mapping: Contrôlé = check circle (green), Non contrôlé = clock (neutral), Défaut = triangle alert (amber), Bloqué = octagon alert (red). Alerts are bordered 8px-radius blocks with an 18px icon.
-
-### Tables
-- Sunken header (13px/600, tertiary ink), 12px 16px cells, hairline row dividers, hover #fafbfc, cell links bold ink turning indigo on hover.
+- **Style:** fond blanc, filet fort, coins de 6px, hauteur 38px; 52px et 17px côté chauffeur.
+- **Focus:** contour encre plus halo de 3px; erreur en `state-danger` avec message en texte.
+- **Case à cocher:** 18px, coins de 5px, coche blanche sur encre.
 
 ### Navigation
-- Sidebar items 36px, icon 18px plus label; current page gets Indigo Mist fill, #2a3796 text, indigo icon via `aria-current="page"`.
+Bandeau supérieur de 64px en texte seul: marque à gauche, quatre liens (Tableau de bord, Contrôles, Checklists, Paramètres) en `ink-3` 500, compte et "Déconnexion" fantôme à droite. Page active: texte encre avec soulignement orange de 2px. Sous 760px le bandeau se replie, les liens défilent horizontalement avec des cibles de 44px.
 
-### Plaque (signature)
-- License plate rendered as a bordered, white, 650-weight tabular chip with 0.04em tracking; 24px with 2px ink border on the driver page.
+### Filtres d'état
+Texte en ligne sur un filet avec compteurs tabulaires; actif en encre avec soulignement d'encre de 2px.
 
-### Driver checklist point
-- Card with 1.5px border, 12px radius; KO state turns the border red with a faint red fill. OK/KO segmented control, 52px minimum height, icon plus word, tinted when selected.
+### Listes à filets
+Tableau sans cadre: en-têtes en `ink-3`, lignes séparées par un filet, premier lien en 500, survol blanc. État vide centré avec titre de 18px.
+
+### Plaque et état
+Plaque: Geist Mono dans un filet fort sur blanc, coins de 5px, pas d'imitation de plaque réelle. État: point de 8px et libellé en 500.
+
+### Avis
+Fond teinté, filet teinté, coins de 8px, padding 12px 16px; variantes danger et ok.
+
+### Dialogue
+480px max, blanc, coins de 14px, ombre propre, entrée en 220ms (légère montée et échelle), actions alignées à droite.
+
+### Contrôle chauffeur
+Lignes de points sous filet; choix OK (encre) / Défaut (rouge) en deux boutons de 54px; zone de dépôt de photo en pointillé; signature sur toile blanche de 170px; barre de validation fixe translucide; écran de résultat avec grand signe cerclé (vert ou rouge) animé en 500ms.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** pair every state color with a Lucide icon and a text label.
-- **Do** keep indigo for actions, focus and current location only.
-- **Do** use tabular numerals for figures and plates.
-- **Do** size driver controls to at least 52px with 1.5px borders and 17px text.
-- **Do** keep light mode only.
-- **Do** use the system stack and Lucide icons at 14, 16, 18 or 20-22px.
+- **Do** garder l'orange `#e5560a` pour le losange de marque et le soulignement actif seulement.
+- **Do** coupler tout état à un point et à un mot.
+- **Do** séparer les contenus par des filets de 1px (`hairline`) plutôt que par des cadres.
+- **Do** mettre plaques et valeurs en Geist Mono, le reste en Geist.
+- **Do** utiliser des boutons primaires noirs, coins de 6px, sans ombre.
+- **Do** respecter `prefers-reduced-motion` et un focus visible de 2px en encre.
 
 ### Don't:
-- **Don't** signal status with color alone.
-- **Don't** add a second accent hue or use semantic colors decoratively.
-- **Don't** put shadows on anything but panels, secondary buttons, the submit bar and dialogs.
-- **Don't** hide table columns off-screen on phones; use the card layout.
-- **Don't** load a webfont or add a dark theme.
+- **Don't** ajouter une barre latérale, des cartes blanches arrondies, des badges ou des icônes décoratives.
+- **Don't** introduire une teinte d'accent supplémentaire (indigo, bleu) ni un mode sombre.
+- **Don't** imiter une vraie plaque d'immatriculation ni un macaron.
+- **Don't** ajouter une ombre hors dialogue.
+- **Don't** utiliser de capitales espacées ni de petits textes de surtitre.
