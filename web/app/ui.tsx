@@ -1,49 +1,59 @@
-import { CircleCheck, Clock, OctagonAlert, TriangleAlert, Truck } from "lucide-react";
-
 export type Statut = "controle" | "non_controle" | "defaut" | "bloque";
-
-const STATUTS = {
-  controle: { label: "Contrôlé", cls: "badge-ok", Icon: CircleCheck },
-  non_controle: { label: "Non contrôlé", cls: "", Icon: Clock },
-  defaut: { label: "Défaut", cls: "badge-warn", Icon: TriangleAlert },
-  bloque: { label: "Bloqué", cls: "badge-danger", Icon: OctagonAlert },
-} as const;
 
 export const STATUT_LABELS: Record<Statut, string> = {
   controle: "Contrôlé", non_controle: "Non contrôlé", defaut: "Défaut", bloque: "Bloqué",
 };
 
-// Jamais la couleur seule : chaque état porte aussi une icône et un texte.
-export function StatusBadge({ statut }: { statut: Statut }) {
-  const { label, cls, Icon } = STATUTS[statut];
-  return <span className={`badge ${cls}`}><Icon aria-hidden />{label}</span>;
+// Un état se lit par son point ET son texte, jamais par la couleur seule.
+export function Macaron({ statut, size }: { statut: Statut; size?: "lg" | "xl" }) {
+  if (size === "xl") {
+    return (
+      <svg className="mark" viewBox="0 0 64 64" aria-hidden fill="none" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="32" cy="32" r="30" className={`mark-ring mark-${statut}`} strokeWidth="2" />
+        <path className={`mark-${statut}`} strokeWidth="3.5" d={statut === "controle" ? "M20 33 L28 41 L44 24" : "M23 23 L41 41 M41 23 L23 41"} />
+      </svg>
+    );
+  }
+  return <span className={`dot dot-${statut}`} aria-hidden />;
 }
 
-export function Plaque({ children }: { children: React.ReactNode }) {
-  return <span className="plaque">{children}</span>;
+export function Etat({ statut, label }: { statut: Statut; label?: string }) {
+  return <span className="etat"><Macaron statut={statut} />{label ?? STATUT_LABELS[statut]}</span>;
+}
+
+// Plaque : simple chasse fixe dans un filet, sans imitation de la vraie plaque.
+export function Plaque({ children, size }: { children: string; size?: "lg" | "xl" }) {
+  return <span className={`plaque ${size ? `plaque-${size}` : ""}`}>{children}</span>;
 }
 
 export function Brand({ href }: { href?: string }) {
-  const content = (
-    <>
-      <span className="brand-mark"><Truck aria-hidden /></span>
-      <span>Flotta</span>
-    </>
-  );
-  return href ? <a className="brand" href={href}>{content}</a> : <div className="brand">{content}</div>;
+  const contenu = <><span className="brand-mark" aria-hidden />Flotta</>;
+  return href ? <a className="brand" href={href}>{contenu}</a> : <div className="brand">{contenu}</div>;
 }
 
-export function Empty({ icon, title, children }: { icon: React.ReactNode; title: string; children?: React.ReactNode }) {
+export function Coche({ ok }: { ok: boolean }) {
   return (
-    <div className="empty">
-      {icon}
-      <strong>{title}</strong>
-      {children && <p>{children}</p>}
-    </div>
+    <svg className={`coche ${ok ? "coche-ok" : "coche-ko"}`} viewBox="0 0 16 16" width="16" height="16" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={ok ? "Conforme" : "Défaut"}>
+      <path d={ok ? "M3 8.5 L6.5 12 L13 4.5" : "M4 4 L12 12 M12 4 L4 12"} stroke="currentColor" />
+    </svg>
+  );
+}
+
+export function Chevron({ sens }: { sens: "haut" | "bas" }) {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d={sens === "haut" ? "M3.5 10 L8 5.5 L12.5 10" : "M3.5 6 L8 10.5 L12.5 6"} />
+    </svg>
+  );
+}
+
+export function BandeauPublic() {
+  return (
+    <header className="band">
+      <div className="band-in"><Brand href="/" /></div>
+    </header>
   );
 }
 
 export const dateHeure = (iso: string) =>
   new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
-
-export const heure = (iso: string) => new Date(iso).toLocaleTimeString("fr-FR", { timeStyle: "short" });

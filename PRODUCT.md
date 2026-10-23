@@ -27,7 +27,7 @@ Site web uniquement (Next.js, app router, TypeScript). Pas d'application native.
 
 Nom du produit affiché : **Flotta**. Aucune autre contrainte d'identité (confirmé par l'utilisateur).
 
-Direction visuelle choisie par l'utilisateur : **sobre et neutre**, le standard des SaaS B2B bien faits (fond clair, gris ardoise, un seul accent indigo, états vert/ambre/rouge). Niveau de finition visé : Linear, Stripe Dashboard, Samsara (repères supposés, non confirmés). Pas de mode sombre : usage au bureau et en plein jour.
+Direction visuelle (3e itération, demandée par l'utilisateur) : la version sobre/neutre a été jugée « vibe codée » (générique, structure répétitive, trop d'icônes et de badges), la version plaque/macaron « vieillotte ». Cible confirmée : **moderne et sobre**, direction « Encre & signal » : fond blanc cassé chaud, encre quasi noire, boutons noirs, un seul accent orange signal réservé à la marque, police Geist, listes aérées sans cadres, états en point + texte. Pas de mode sombre.
 
 ## Evidence on Hand
 

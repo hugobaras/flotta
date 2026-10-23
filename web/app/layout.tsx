@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "./globals.css";
 
 export const metadata: Metadata = { title: "Flotta", description: "Contrôle avant départ pour le transport routier" };

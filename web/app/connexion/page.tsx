@@ -1,8 +1,7 @@
 "use client";
 
-import { LogIn, TriangleAlert } from "lucide-react";
 import { useState } from "react";
-import { Brand } from "../ui";
+import { BandeauPublic } from "../ui";
 
 export default function Connexion() {
   const [email, setEmail] = useState("");
@@ -29,12 +28,12 @@ export default function Connexion() {
   }
 
   return (
-    <main className="center-page">
-      <div className="auth-card">
-        <Brand href="/" />
-        <form className="panel" onSubmit={envoyer}>
-          <div className="panel-body">
-            <h1>Connexion</h1>
+    <div className="public">
+      <BandeauPublic />
+      <main className="public-body">
+        <div className="auth">
+          <h1>Connexion</h1>
+          <form onSubmit={envoyer}>
             <div className="field">
               <label htmlFor="email">Adresse email</label>
               <input id="email" className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
@@ -43,11 +42,11 @@ export default function Connexion() {
               <label htmlFor="password">Mot de passe</label>
               <input id="password" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            {erreur && <div className="alert alert-danger" role="alert"><TriangleAlert aria-hidden /><span>{erreur}</span></div>}
-            <button className="btn btn-primary" type="submit" disabled={envoi}><LogIn aria-hidden />{envoi ? "Connexion…" : "Se connecter"}</button>
-          </div>
-        </form>
-      </div>
-    </main>
+            {erreur && <div className="notice danger" role="alert" style={{ margin: 0 }}>{erreur}</div>}
+            <button className="btn btn-primary" type="submit" disabled={envoi}>{envoi ? "Connexion…" : "Se connecter"}</button>
+          </form>
+        </div>
+      </main>
+    </div>
   );
 }

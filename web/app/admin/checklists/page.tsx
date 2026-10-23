@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Chevron } from "../../ui";
 
 type Item = { id: number; libelle: string; critique: boolean; actif: boolean };
 type Modele = { id: number; nom: string; vehicle_type: string; items: Item[] };
@@ -36,67 +36,62 @@ export default function Checklists() {
 
   return (
     <>
-      <div className="page-header">
+      <div className="page-head">
         <div>
           <h1>Checklists</h1>
           <p>Les points que le chauffeur contrôle avant de partir. Un point critique bloque le camion s'il est en défaut.</p>
         </div>
       </div>
 
-      <div className="stack-lg">
-        {modeles.map((m) => (
-          <section key={m.id} className="panel" aria-labelledby={`m${m.id}`}>
-            <div className="panel-head">
-              <h2 id={`m${m.id}`}>{m.nom}</h2>
-              <span className="badge badge-accent">{TYPES[m.vehicle_type] ?? m.vehicle_type}</span>
-            </div>
-            <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {m.items.map((i, n) => (
-                <li key={i.id} className={`item-row ${i.actif ? "" : "is-off"}`}>
-                  <div className="move">
-                    <button className="btn btn-ghost btn-icon btn-sm" style={{ height: 22 }} onClick={() => deplacer(i, "haut")} disabled={n === 0} aria-label={`Monter « ${i.libelle} »`}><ChevronUp aria-hidden /></button>
-                    <button className="btn btn-ghost btn-icon btn-sm" style={{ height: 22 }} onClick={() => deplacer(i, "bas")} disabled={n === m.items.length - 1} aria-label={`Descendre « ${i.libelle} »`}><ChevronDown aria-hidden /></button>
-                  </div>
-                  {edition?.id === i.id ? (
-                    <form
-                      style={{ display: "flex", gap: 8, flex: 1 }}
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (edition.libelle.trim()) await modifier(i, { libelle: edition.libelle });
-                        setEdition(null);
-                      }}
-                    >
-                      <input className="input" aria-label="Libellé du point" value={edition.libelle} maxLength={200} onChange={(e) => setEdition({ id: i.id, libelle: e.target.value })} autoFocus />
-                      <button className="btn btn-primary btn-sm" type="submit">Enregistrer</button>
-                      <button className="btn btn-sm" type="button" onClick={() => setEdition(null)}>Annuler</button>
-                    </form>
-                  ) : (
-                    <>
-                      <span className="item-label">{i.libelle}</span>
-                      <div className="item-controls">
-                        <button className="btn btn-ghost btn-icon" onClick={() => setEdition({ id: i.id, libelle: i.libelle })} aria-label={`Renommer « ${i.libelle} »`}><Pencil aria-hidden /></button>
-                        <label className="switch"><input type="checkbox" role="switch" checked={i.critique} onChange={(e) => modifier(i, { critique: e.target.checked })} />Critique</label>
-                        <label className="switch"><input type="checkbox" role="switch" checked={i.actif} onChange={(e) => modifier(i, { actif: e.target.checked })} />Actif</label>
-                      </div>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ol>
-            <form
-              className="add-row"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                await appeler(`/api/admin/checklists/${m.id}/items`, "POST", { libelle: nouveau[m.id] });
-                setNouveau({ ...nouveau, [m.id]: "" });
-              }}
-            >
-              <input className="input" aria-label="Nouveau point" placeholder="Ajouter un point, par exemple « Extincteur »" value={nouveau[m.id] ?? ""} maxLength={200} onChange={(e) => setNouveau({ ...nouveau, [m.id]: e.target.value })} required />
-              <button className="btn btn-primary" type="submit"><Plus aria-hidden />Ajouter</button>
-            </form>
-          </section>
-        ))}
-      </div>
+      {modeles.map((m) => (
+        <section key={m.id} className="section" style={{ marginTop: 0 }} aria-labelledby={`m${m.id}`}>
+          <h2 id={`m${m.id}`}>{m.nom} <small>{TYPES[m.vehicle_type] ?? m.vehicle_type}</small></h2>
+          <ol className="items">
+            {m.items.map((i, n) => (
+              <li key={i.id} className={`item-row ${i.actif ? "" : "is-off"}`}>
+                <div className="move">
+                  <button className="btn btn-ghost btn-icon" onClick={() => deplacer(i, "haut")} disabled={n === 0} aria-label={`Monter « ${i.libelle} »`}><Chevron sens="haut" /></button>
+                  <button className="btn btn-ghost btn-icon" onClick={() => deplacer(i, "bas")} disabled={n === m.items.length - 1} aria-label={`Descendre « ${i.libelle} »`}><Chevron sens="bas" /></button>
+                </div>
+                {edition?.id === i.id ? (
+                  <form
+                    style={{ display: "flex", gap: 8, flex: 1, flexWrap: "wrap" }}
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (edition.libelle.trim()) await modifier(i, { libelle: edition.libelle });
+                      setEdition(null);
+                    }}
+                  >
+                    <input className="input" style={{ flex: "1 1 240px" }} aria-label="Libellé du point" value={edition.libelle} maxLength={200} onChange={(e) => setEdition({ id: i.id, libelle: e.target.value })} autoFocus />
+                    <button className="btn btn-primary btn-sm" type="submit">Enregistrer</button>
+                    <button className="btn btn-sm" type="button" onClick={() => setEdition(null)}>Annuler</button>
+                  </form>
+                ) : (
+                  <>
+                    <span className="item-label">{i.libelle}</span>
+                    <div className="item-controls">
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEdition({ id: i.id, libelle: i.libelle })} aria-label={`Renommer « ${i.libelle} »`}>Renommer</button>
+                      <label className="check"><input type="checkbox" checked={i.critique} onChange={(e) => modifier(i, { critique: e.target.checked })} />Critique</label>
+                      <label className="check"><input type="checkbox" checked={i.actif} onChange={(e) => modifier(i, { actif: e.target.checked })} />Actif</label>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
+          </ol>
+          <form
+            className="add-row"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              await appeler(`/api/admin/checklists/${m.id}/items`, "POST", { libelle: nouveau[m.id] });
+              setNouveau({ ...nouveau, [m.id]: "" });
+            }}
+          >
+            <input className="input" aria-label="Nouveau point" placeholder="Ajouter un point, par exemple « Extincteur »" value={nouveau[m.id] ?? ""} maxLength={200} onChange={(e) => setNouveau({ ...nouveau, [m.id]: e.target.value })} required />
+            <button className="btn btn-primary" type="submit">Ajouter</button>
+          </form>
+        </section>
+      ))}
     </>
   );
 }

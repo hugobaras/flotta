@@ -1,19 +1,21 @@
-import { Brand } from "./ui";
+import { BandeauPublic } from "./ui";
 
 export default function Home() {
   return (
-    <main className="center-page">
-      <div className="auth-card">
-        <Brand />
-        <div className="panel">
-          <div className="panel-body">
+    <div className="public">
+      <BandeauPublic />
+      <main className="public-body">
+        <div className="auth">
+          <div className="stack">
             <h1>Contrôle avant départ</h1>
-            <p className="muted">Chauffeur : scannez le QR code collé dans votre cabine pour démarrer le contrôle de votre camion.</p>
+            <p className="muted" style={{ marginTop: 8 }}>Chauffeur : scannez le QR code collé dans votre cabine pour contrôler votre camion.</p>
+          </div>
+          <div style={{ display: "grid", gap: 12 }}>
             <a className="btn btn-primary" href="/connexion">Espace exploitant</a>
-            <a className="btn" href="/c/demo">Voir le camion de démonstration</a>
+            <a className="btn" href="/c/demo">Camion de démonstration</a>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

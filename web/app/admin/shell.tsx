@@ -1,16 +1,15 @@
 "use client";
 
-import { ClipboardCheck, LayoutDashboard, ListChecks, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Brand } from "../ui";
 
 const NAV = [
-  { href: "/admin", label: "Tableau de bord", Icon: LayoutDashboard, exact: true },
-  { href: "/admin/controles", label: "Contrôles", Icon: ClipboardCheck },
-  { href: "/admin/checklists", label: "Checklists", Icon: ListChecks },
-  { href: "/admin/parametres", label: "Paramètres", Icon: Settings },
+  { href: "/admin", label: "Tableau de bord", exact: true },
+  { href: "/admin/controles", label: "Contrôles" },
+  { href: "/admin/checklists", label: "Checklists" },
+  { href: "/admin/parametres", label: "Paramètres" },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -30,22 +29,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <Brand href="/admin" />
-        <nav className="nav" aria-label="Navigation principale">
-          {NAV.map(({ href, label, Icon, exact }) => (
-            <Link key={href} href={href} aria-label={label} title={label} aria-current={(exact ? path === href : path.startsWith(href)) ? "page" : undefined}>
-              <Icon aria-hidden /><span>{label}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="sidebar-foot">
-          <div className="who" title={email}>{email}</div>
-          <button className="btn btn-sm" onClick={deconnexion}><LogOut aria-hidden />Se déconnecter</button>
+    <>
+      <header className="band">
+        <div className="band-in">
+          <Brand href="/admin" />
+          <nav className="nav" aria-label="Navigation principale">
+            {NAV.map(({ href, label, exact }) => (
+              <Link key={href} href={href} aria-current={(exact ? path === href : path.startsWith(href)) ? "page" : undefined}>{label}</Link>
+            ))}
+          </nav>
+          <div className="who">
+            <span className="email" title={email}>{email}</span>
+            <button className="btn btn-ghost btn-sm" onClick={deconnexion}>Déconnexion</button>
+          </div>
         </div>
-      </aside>
-      <main className="main">{children}</main>
-    </div>
+      </header>
+      <main className="wrap">{children}</main>
+    </>
   );
 }

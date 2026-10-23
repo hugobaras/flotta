@@ -1,9 +1,8 @@
 "use client";
 
-import { ChevronRight, ClipboardCheck, Search } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { dateHeure, Empty, Plaque } from "../../ui";
+import { dateHeure, Etat, Plaque } from "../../ui";
 
 type Controle = { id: number; plaque: string; conducteur: string; defaut_critique: boolean; has_defaut: boolean; created_at: string };
 
@@ -27,7 +26,7 @@ export default function Controles() {
 
   return (
     <>
-      <div className="page-header">
+      <div className="page-head">
         <div>
           <h1>Contrôles</h1>
           <p>Historique des contrôles avant départ, du plus récent au plus ancien.</p>
@@ -36,46 +35,43 @@ export default function Controles() {
 
       <div className="toolbar">
         <input className="input" type="date" aria-label="Jour" value={filtres.date} onChange={(e) => setFiltres({ ...filtres, date: e.target.value })} />
-        <div className="input-icon grow">
-          <Search aria-hidden />
+        <div className="grow">
           <input className="input" type="search" placeholder="Rechercher un conducteur" aria-label="Conducteur" value={filtres.conducteur} onChange={(e) => setFiltres({ ...filtres, conducteur: e.target.value })} />
         </div>
-        <label className="switch">
-          <input type="checkbox" role="switch" checked={filtres.defaut} onChange={(e) => setFiltres({ ...filtres, defaut: e.target.checked })} />
+        <label className="check">
+          <input type="checkbox" checked={filtres.defaut} onChange={(e) => setFiltres({ ...filtres, defaut: e.target.checked })} />
           Défauts seulement
         </label>
       </div>
 
-      <div className="panel">
-        {!lignes ? (
-          <p className="muted" style={{ padding: 24 }}>Chargement…</p>
-        ) : lignes.length === 0 ? (
-          <Empty icon={<ClipboardCheck aria-hidden />} title="Aucun contrôle">Aucun contrôle ne correspond à ces filtres.</Empty>
-        ) : (
-          <div className="table-wrap">
-            <table className="table table-cards">
-              <thead>
-                <tr><th>Date</th><th>Camion</th><th>Conducteur</th><th>Résultat</th><th><span className="sr-only">Voir</span></th></tr>
-              </thead>
-              <tbody>
-                {lignes.map((c) => (
-                  <tr key={c.id}>
-                    <td className="num full muted">{dateHeure(c.created_at)}</td>
-                    <td><Plaque>{c.plaque}</Plaque></td>
-                    <td>{c.conducteur}</td>
-                    <td>
-                      {c.defaut_critique ? <span className="badge badge-danger">Défaut critique</span>
-                        : c.has_defaut ? <span className="badge badge-warn">Défaut</span>
-                        : <span className="badge badge-ok">Conforme</span>}
-                    </td>
-                    <td className="right"><Link className="btn btn-ghost btn-icon" href={`/admin/controles/${c.id}`} aria-label={`Ouvrir le contrôle de ${c.plaque}`}><ChevronRight aria-hidden /></Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {!lignes ? (
+        <p className="muted">Chargement…</p>
+      ) : lignes.length === 0 ? (
+        <div className="rack-empty"><strong>Aucun contrôle</strong>Aucun contrôle ne correspond à ces filtres.</div>
+      ) : (
+        <div className="table-wrap">
+          <table className="rack rack-cards">
+            <thead>
+              <tr><th>Date</th><th>Camion</th><th>Conducteur</th><th>Résultat</th><th><span className="sr-only">Ouvrir</span></th></tr>
+            </thead>
+            <tbody>
+              {lignes.map((c) => (
+                <tr key={c.id}>
+                  <td className="num full muted">{dateHeure(c.created_at)}</td>
+                  <td><Plaque size="lg">{c.plaque}</Plaque></td>
+                  <td>{c.conducteur}</td>
+                  <td>
+                    {c.defaut_critique ? <Etat statut="bloque" label="Défaut critique" />
+                      : c.has_defaut ? <Etat statut="defaut" label="Défaut" />
+                      : <Etat statut="controle" label="Conforme" />}
+                  </td>
+                  <td className="right"><Link className="btn btn-sm" href={`/admin/controles/${c.id}`} aria-label={`Ouvrir le contrôle de ${c.plaque}`}>Ouvrir</Link></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }

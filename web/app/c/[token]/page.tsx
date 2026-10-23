@@ -1,8 +1,7 @@
 "use client";
 
-import { Camera, Check, CircleCheck, Eraser, OctagonAlert, Send, TriangleAlert, X } from "lucide-react";
 import { use, useEffect, useRef, useState } from "react";
-import { Brand, Plaque } from "../../ui";
+import { BandeauPublic, Etat, Macaron, Plaque } from "../../ui";
 
 type Item = { id: number; libelle: string; critique: boolean };
 type Controle = { plaque: string; bloque: boolean; checklist: Item[] };
@@ -44,26 +43,28 @@ export default function Controle({ params }: { params: Promise<{ token: string }
 
   if (erreur) {
     return (
-      <main className="driver">
-        <div className="driver-head"><Brand /></div>
-        <div className="alert alert-danger" role="alert"><TriangleAlert aria-hidden /><span>{erreur}</span></div>
-      </main>
+      <>
+        <BandeauPublic />
+        <main className="driver"><div className="notice danger" role="alert">{erreur}</div></main>
+      </>
     );
   }
-  if (!data) return <main className="driver"><p className="muted">Chargement…</p></main>;
+  if (!data) return <><BandeauPublic /><main className="driver"><p className="muted">Chargement…</p></main></>;
 
   if (resultat) {
     return (
-      <main className="driver">
-        <div className="driver-head"><Brand /></div>
-        <div className={`result ${resultat.bloque ? "ko" : "ok"}`} role="status">
-          {resultat.bloque ? <OctagonAlert aria-hidden /> : <CircleCheck aria-hidden />}
-          <Plaque>{data.plaque}</Plaque>
-          <h1>{resultat.bloque ? "Camion bloqué" : "Contrôle enregistré"}</h1>
-          <p>{resultat.bloque ? "Un défaut critique a été signalé. Ne prenez pas la route et prévenez votre exploitant." : "Vous pouvez prendre la route. Bonne journée."}</p>
-          {resultat.photosManquantes > 0 && <p className="muted">{resultat.photosManquantes} photo(s) n'ont pas pu être envoyées.</p>}
-        </div>
-      </main>
+      <>
+        <BandeauPublic />
+        <main className="driver">
+          <div className="result" role="status">
+            <Macaron statut={resultat.bloque ? "bloque" : "controle"} size="xl" />
+            <Plaque size="xl">{data.plaque}</Plaque>
+            <h1>{resultat.bloque ? "Camion bloqué" : "Contrôle enregistré"}</h1>
+            <p>{resultat.bloque ? "Un défaut critique a été signalé. Ne prenez pas la route et prévenez votre exploitant." : "Vous pouvez prendre la route. Bonne journée."}</p>
+            {resultat.photosManquantes > 0 && <p className="muted">{resultat.photosManquantes} photo(s) n'ont pas pu être envoyées.</p>}
+          </div>
+        </main>
+      </>
     );
   }
 
@@ -86,7 +87,7 @@ export default function Controle({ params }: { params: Promise<{ token: string }
     const ctx = canvas.current!.getContext("2d")!;
     ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
-    ctx.strokeStyle = "#14171f";
+    ctx.strokeStyle = "#0f1419";
     ctx.lineTo(...point(e));
     ctx.stroke();
     setSigne(true);
@@ -134,75 +135,84 @@ export default function Controle({ params }: { params: Promise<{ token: string }
   const nbKo = Object.values(ko).filter(Boolean).length;
 
   return (
-    <main className="driver">
-      <div className="driver-head"><Brand /><span className="muted">Contrôle avant départ</span></div>
-      <div className="driver-plate">
-        <Plaque>{data.plaque}</Plaque>
-      </div>
-
-      {data.bloque && (
-        <div className="alert alert-danger" role="alert" style={{ marginBottom: 16 }}>
-          <OctagonAlert aria-hidden /><span><strong>Ce camion est bloqué.</strong> Un nouveau contrôle ne le débloque pas : contactez votre exploitant.</span>
+    <>
+      <BandeauPublic />
+      <main className="driver">
+        <div className="driver-id">
+          <Plaque size="xl">{data.plaque}</Plaque>
+          {data.bloque && <Etat statut="bloque" />}
         </div>
-      )}
+        <h1>Contrôle avant départ</h1>
 
-      <div className="field">
-        <label htmlFor="nom" style={{ fontSize: 17 }}>Votre nom</label>
-        <input id="nom" className="input" autoComplete="name" value={conducteur} aria-invalid={!!erreurNom} aria-describedby={erreurNom ? "nom-erreur" : undefined} onChange={(e) => { setConducteur(e.target.value); setErreurNom(""); }} />
-        {erreurNom && <p id="nom-erreur" role="alert" style={{ color: "var(--danger)", fontWeight: 600 }}>{erreurNom}</p>}
-      </div>
+        {data.bloque && (
+          <div className="notice danger" role="alert">
+            <span><strong>Ce camion est bloqué.</strong> Un nouveau contrôle ne le débloque pas : contactez votre exploitant.</span>
+          </div>
+        )}
 
-      <h2>Points à contrôler</h2>
-      <ul className="points">
-        {data.checklist.map((i) => (
-          <li key={i.id} className={`point ${ko[i.id] ? "is-ko" : ""}`}>
-            <div className="point-label">
-              <span id={`p${i.id}`}>{i.libelle}</span>
-              {i.critique && <span className="badge">Critique</span>}
-            </div>
-            <div className="seg" role="radiogroup" aria-labelledby={`p${i.id}`}>
-              <button type="button" role="radio" aria-checked={!ko[i.id]} className="ok" onClick={() => setKo({ ...ko, [i.id]: false })}><Check aria-hidden />OK</button>
-              <button type="button" role="radio" aria-checked={!!ko[i.id]} className="ko" onClick={() => setKo({ ...ko, [i.id]: true })}><X aria-hidden />Défaut</button>
-            </div>
-            {ko[i.id] && (
-              <input className="input" aria-label={`Précision sur « ${i.libelle} »`} placeholder="Décrivez le défaut (facultatif)" value={notes[i.id] ?? ""} maxLength={300} onChange={(e) => setNotes({ ...notes, [i.id]: e.target.value })} />
-            )}
-          </li>
-        ))}
-      </ul>
-
-      <h2>Photos</h2>
-      <label className="file-drop">
-        <Camera aria-hidden />
-        <span>{photos.length ? `${photos.length} photo${photos.length > 1 ? "s" : ""} ajoutée${photos.length > 1 ? "s" : ""}` : "Prendre ou ajouter des photos"}</span>
-        <input type="file" accept="image/jpeg,image/png" multiple onChange={(e) => setPhotos(Array.from(e.target.files ?? []).slice(0, 5))} />
-      </label>
-      <p className="hint" style={{ marginTop: 6 }}>5 photos au maximum, utiles surtout en cas de défaut.</p>
-
-      <h2>Signature</h2>
-      <canvas
-        ref={canvas}
-        className="signature"
-        width={800}
-        height={320}
-        aria-label="Zone de signature, à dessiner au doigt"
-        onPointerDown={commencer}
-        onPointerMove={tracer}
-        onPointerUp={() => (dessin.current = false)}
-        onPointerCancel={() => (dessin.current = false)}
-      />
-      <button type="button" className="btn btn-sm" style={{ marginTop: 8 }} onClick={effacer} disabled={!signe}><Eraser aria-hidden />Effacer</button>
-
-      {echec && <div className="alert alert-danger" role="alert" style={{ marginTop: 20 }}><TriangleAlert aria-hidden /><span>{echec}</span></div>}
-
-      <div className="submit-bar">
-        <div className="inner">
-          <button className={`btn btn-xl ${nbKo ? "btn-danger" : "btn-primary"}`} onClick={envoyer} disabled={envoi}>
-            <Send aria-hidden />
-            {envoi ? "Envoi en cours…" : nbKo ? `Valider avec ${nbKo} défaut${nbKo > 1 ? "s" : ""}` : "Valider le contrôle"}
-          </button>
+        <div className="field">
+          <label htmlFor="nom">Votre nom</label>
+          <input id="nom" className="input" autoComplete="name" value={conducteur} aria-invalid={!!erreurNom} aria-describedby={erreurNom ? "nom-erreur" : undefined} onChange={(e) => { setConducteur(e.target.value); setErreurNom(""); }} />
+          {erreurNom && <p id="nom-erreur" role="alert" style={{ color: "var(--rouge)", fontWeight: 700 }}>{erreurNom}</p>}
         </div>
-      </div>
-    </main>
+
+        <section className="section">
+          <h2>Points à contrôler</h2>
+          <ul className="points">
+            {data.checklist.map((i) => (
+              <li key={i.id} className={`point ${ko[i.id] ? "is-ko" : ""}`}>
+                <div className="point-label">
+                  <span id={`p${i.id}`}>{i.libelle}</span>
+                  {i.critique && <span className="critique">Critique</span>}
+                </div>
+                <div className="seg" role="radiogroup" aria-labelledby={`p${i.id}`}>
+                  <button type="button" role="radio" aria-checked={!ko[i.id]} className="ok" onClick={() => setKo({ ...ko, [i.id]: false })}>OK</button>
+                  <button type="button" role="radio" aria-checked={!!ko[i.id]} className="ko" onClick={() => setKo({ ...ko, [i.id]: true })}>Défaut</button>
+                </div>
+                {ko[i.id] && (
+                  <input className="input" aria-label={`Précision sur « ${i.libelle} »`} placeholder="Décrivez le défaut (facultatif)" value={notes[i.id] ?? ""} maxLength={300} onChange={(e) => setNotes({ ...notes, [i.id]: e.target.value })} />
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="section">
+          <h2>Photos</h2>
+          <label className="file-drop" style={{ marginTop: 12 }}>
+            <span>{photos.length ? `${photos.length} photo${photos.length > 1 ? "s" : ""} ajoutée${photos.length > 1 ? "s" : ""}` : "Prendre ou ajouter des photos"}</span>
+            <input type="file" accept="image/jpeg,image/png" multiple onChange={(e) => setPhotos(Array.from(e.target.files ?? []).slice(0, 5))} />
+          </label>
+          <p className="hint" style={{ marginTop: 6 }}>5 photos au maximum, utiles surtout en cas de défaut.</p>
+        </section>
+
+        <section className="section">
+          <h2>Signature</h2>
+          <canvas
+            ref={canvas}
+            className="signature"
+            style={{ marginTop: 12 }}
+            width={800}
+            height={340}
+            aria-label="Zone de signature, à dessiner au doigt"
+            onPointerDown={commencer}
+            onPointerMove={tracer}
+            onPointerUp={() => (dessin.current = false)}
+            onPointerCancel={() => (dessin.current = false)}
+          />
+          <button type="button" className="btn btn-sm" style={{ marginTop: 8 }} onClick={effacer} disabled={!signe}>Effacer</button>
+        </section>
+
+        {echec && <div className="notice danger" role="alert" style={{ marginTop: 24 }}>{echec}</div>}
+
+        <div className="submit-bar">
+          <div className="inner">
+            <button className={`btn btn-xl ${nbKo ? "btn-danger" : "btn-primary"}`} onClick={envoyer} disabled={envoi}>
+              {envoi ? "Envoi en cours…" : nbKo ? `Valider avec ${nbKo} défaut${nbKo > 1 ? "s" : ""}` : "Valider le contrôle"}
+            </button>
+          </div>
+        </div>
+      </main>
+    </>
   );
 }
