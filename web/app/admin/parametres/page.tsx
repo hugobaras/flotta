@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ReglagesTabs } from "../../ui";
 
-type Params = { heure_rappel: string; retention_jours: number; alert_emails: string[]; logo: boolean };
+type Params = { heure_rappel: string; retention_jours: number; alert_emails: string[]; logo: boolean; cout_km_eur: number; conso_l_100km: number; prix_carburant_eur_l: number; peage_eur_km: number };
 type Message = { ok: boolean; texte: string } | null;
 
 export default function Parametres() {
@@ -26,7 +26,7 @@ export default function Parametres() {
     const r = await fetch("/api/admin/parametres", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ heure_rappel: p!.heure_rappel, retention_jours: p!.retention_jours, alert_emails }),
+      body: JSON.stringify({ heure_rappel: p!.heure_rappel, retention_jours: p!.retention_jours, alert_emails, cout_km_eur: p!.cout_km_eur, conso_l_100km: p!.conso_l_100km, prix_carburant_eur_l: p!.prix_carburant_eur_l, peage_eur_km: p!.peage_eur_km }),
     });
     setMessage(r.ok ? { ok: true, texte: "Paramètres enregistrés." }
       : { ok: false, texte: r.status === 403 ? "Réservé aux administrateurs." : "Valeurs invalides : vérifiez les adresses email et les durées." });
@@ -73,6 +73,13 @@ export default function Parametres() {
           <label htmlFor="retention">Conservation, en jours<span className="hint">Contrôles, photos et positions sont supprimés passé ce délai (3 ans par défaut).</span></label>
           <div className="control"><input id="retention" className="input narrow" type="number" min={30} max={3650} value={p.retention_jours} onChange={(e) => setP({ ...p, retention_jours: Number(e.target.value) })} required /></div>
         </div>
+        <h2 style={{ marginTop: 32 }}>Estimation des coûts d'itinéraire</h2>
+        {([["conso_l_100km", "Consommation (l/100 km)", "Moyenne de votre flotte."], ["prix_carburant_eur_l", "Prix du carburant (€/l)", "Prix moyen payé."], ["cout_km_eur", "Coût kilométrique (€/km)", "Conducteur, usure et entretien, hors carburant et péages."], ["peage_eur_km", "Péage (€/km)", "Appliqué à toute la distance si l'itinéraire emprunte un péage."]] as const).map(([cle, libelle, aide]) => (
+          <div className="setting" key={cle}>
+            <label htmlFor={cle}>{libelle}<span className="hint">{aide}</span></label>
+            <div className="control"><input id={cle} className="input narrow" type="number" step="0.01" min={0} value={p[cle]} onChange={(e) => setP({ ...p, [cle]: Number(e.target.value) })} required /></div>
+          </div>
+        ))}
         <div className="form-foot"><button className="btn btn-primary" type="submit">Enregistrer</button></div>
       </form>
 

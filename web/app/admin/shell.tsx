@@ -9,17 +9,22 @@ const NAV = [
   { href: "/admin", label: "Tableau de bord", exact: true },
   { href: "/admin/controles", label: "Contrôles" },
   { href: "/admin/flotte", label: "Flotte", aussi: "/admin/conducteurs" },
+  { href: "/admin/commandes", label: "Commandes", aussi: "/admin/itineraires" },
+  { href: "/admin/planning", label: "Planning" },
   { href: "/admin/parametres", label: "Réglages", aussi: "/admin/checklists" },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [email, setEmail] = useState("");
+  const [plateforme, setPlateforme] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me").then(async (r) => {
       if (r.status === 401) return (window.location.href = "/connexion");
-      setEmail((await r.json()).email);
+      const me = await r.json();
+      setEmail(me.email);
+      setPlateforme(me.role === "plateforme");
     });
   }, []);
 
@@ -34,7 +39,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="band-in">
           <Brand href="/admin" />
           <nav className="nav" aria-label="Navigation principale">
-            {NAV.map(({ href, label, exact, aussi }) => (
+            {[...NAV, ...(plateforme ? [{ href: "/admin/plateforme", label: "Plateforme" }] : [])].map(({ href, label, exact, aussi }) => (
               <Link key={href} href={href} aria-current={(exact ? path === href : path.startsWith(href) || (aussi && path.startsWith(aussi))) ? "page" : undefined}>{label}</Link>
             ))}
           </nav>

@@ -15,9 +15,15 @@ from .checklist_routes import router as checklist_router
 from .checklists import active_items, create_default_template
 from .db import SessionLocal, get_db
 from .badge import hash_pin, lire_badge, signer_badge
+from .commandes import router as commandes_router
 from .conducteurs import router as conducteurs_router
+from .depots import router as depots_router
 from .exploitation import router as exploitation_router
 from .flotte import router as flotte_router
+from .itineraires import router as itineraires_router
+from .plans_api import router as plans_router
+from .plateforme import router as plateforme_router
+from .tournees import admin as tournees_admin, chauffeur as tournees_chauffeur
 from .models import Alert, Check, CheckPhoto, Company, Driver, User, Vehicle
 from .worker import send_critical_alert
 
@@ -56,6 +62,13 @@ app.include_router(checklist_router)
 app.include_router(exploitation_router)
 app.include_router(flotte_router)
 app.include_router(conducteurs_router)
+app.include_router(commandes_router)
+app.include_router(depots_router)
+app.include_router(itineraires_router)
+app.include_router(plans_router)
+app.include_router(plateforme_router)
+app.include_router(tournees_admin)
+app.include_router(tournees_chauffeur)
 
 
 def vehicle_by_token(token: str, db: Session) -> Vehicle:
@@ -80,11 +93,19 @@ def _items_or_409(db: Session, v: Vehicle):
     return items
 
 
+def _tournee_du_jour(db: Session, v: Vehicle) -> str | None:
+    """Jeton de la tournée publiée aujourd'hui pour ce camion (accessible depuis le QR code du camion)."""
+    from . import livraisons
+    from .models import Plan, PlanLien
+    return db.scalar(select(PlanLien.token).join(Plan, Plan.id == PlanLien.plan_id).where(
+        PlanLien.vehicle_id == v.id, Plan.company_id == v.company_id, Plan.publie_le.is_not(None), Plan.jour == livraisons.aujourdhui()).limit(1))
+
+
 @app.get("/api/controle/{token}")
 def get_controle(token: str, db: Session = Depends(get_db)):
     v = vehicle_by_token(token, db)
     checklist = [{"id": i.id, "libelle": i.libelle, "critique": i.critique} for i in _items_or_409(db, v)]
-    return {"plaque": v.plaque, "bloque": v.bloque, "checklist": checklist}
+    return {"plaque": v.plaque, "bloque": v.bloque, "checklist": checklist, "tournee_token": _tournee_du_jour(db, v)}
 
 
 class Reponse(BaseModel):

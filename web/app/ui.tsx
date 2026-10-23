@@ -39,6 +39,15 @@ export function Coche({ ok }: { ok: boolean }) {
   );
 }
 
+export function Cadenas({ ferme }: { ferme: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="7" width="10" height="7" rx="1.5" />
+      <path d={ferme ? "M5.5 7V5a2.5 2.5 0 0 1 5 0v2" : "M5.5 7V5a2.5 2.5 0 0 1 4.6-1.3"} />
+    </svg>
+  );
+}
+
 export function Chevron({ sens }: { sens: "haut" | "bas" }) {
   return (
     <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -56,11 +65,21 @@ export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" }) 
   );
 }
 
-export function FlotteTabs({ actif }: { actif: "vehicules" | "conducteurs" }) {
+export function FlotteTabs({ actif }: { actif: "vehicules" | "conducteurs" | "depots" }) {
   return (
     <nav className="filtres" aria-label="Flotte">
       <a className="filtre" href="/admin/flotte" aria-current={actif === "vehicules" ? "page" : undefined} style={{ textDecoration: "none" }}>Véhicules</a>
       <a className="filtre" href="/admin/conducteurs" aria-current={actif === "conducteurs" ? "page" : undefined} style={{ textDecoration: "none" }}>Conducteurs</a>
+      <a className="filtre" href="/admin/depots" aria-current={actif === "depots" ? "page" : undefined} style={{ textDecoration: "none" }}>Dépôts</a>
+    </nav>
+  );
+}
+
+export function CommandesTabs({ actif }: { actif: "commandes" | "itineraire" }) {
+  return (
+    <nav className="filtres" aria-label="Commandes">
+      <a className="filtre" href="/admin/commandes" aria-current={actif === "commandes" ? "page" : undefined} style={{ textDecoration: "none" }}>Commandes du jour</a>
+      <a className="filtre" href="/admin/itineraires" aria-current={actif === "itineraire" ? "page" : undefined} style={{ textDecoration: "none" }}>Itinéraire</a>
     </nav>
   );
 }
