@@ -47,3 +47,13 @@ Squelette du module « contrôle avant départ ». Contexte et étapes : `claude
 - Correction à la main : sélectionner la commande puis cliquer sur la carte.
 - Dépôts : un par société au minimum (le dernier ne peut pas être supprimé), un seul dépôt par défaut, horaires d'ouverture.
 - Hors périmètre de cette étape : la création d'une commande unique n'a pas d'écran (API `POST /api/admin/commandes` disponible).
+
+## Optimisation de tournées (étape 7)
+
+- `POST /api/admin/plans` crée un plan et le met en file (Celery) ; l'écran Planning interroge `GET /api/admin/plans/{id}` toutes les secondes (en attente, en cours avec pourcentage, terminé, échec).
+- Données : commandes localisées du jour, camions actifs non bloqués avec gabarit complet (les autres sont listés comme exclus), dépôt par défaut. La matrice des temps vient de Valhalla, **une par profil de gabarit** (flotte mixte). Si Valhalla ne répond pas, le plan échoue avec un message clair : aucun temps de trajet n'est inventé.
+- Contraintes : capacité en poids, volume et palettes, fenêtres horaires, durée de service, compatibilité frigo / ADR, horaires d'ouverture du dépôt (départ et retour), durée maximale de tournée (10 h par défaut).
+- Commandes non affectées : listées avec la raison la plus probable (capacité, fenêtre horaire inaccessible, aucun véhicule compatible, adresse inaccessible, retour après la fermeture, durée maximale).
+- Temps de calcul maximal : paramètre `temps_max_s` (10 s par défaut, 120 s au plus). Les petits problèmes s'arrêtent plus tôt.
+- Mesure : 100 commandes et 8 camions (distances simulées) : plan complet en une dizaine de secondes.
+- Limite connue : la contrainte « hayon » d'une commande n'est pas prise en compte (les véhicules n'ont pas encore de champ hayon).
