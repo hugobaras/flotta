@@ -249,7 +249,15 @@ dialog.dialog[open] { animation: pop 0.22s var(--ease); }
 .delta.mieux { color: var(--vert); }
 .delta.pire { color: var(--rouge); }
 .alertes { margin: 0 0 20px; padding: 0; list-style: none; display: grid; gap: 6px; }
-.alertes li { background: var(--danger-tint); border: 1px solid #f5c6c1; border-radius: var(--r); padding: 8px 12px; color: #8f1d14; font-size: 14px; }
+.alertes li { background: var(--notice); border: 1px solid var(--notice-line); border-radius: var(--r); padding: 8px 12px; color: #5c4400; font-size: 14px; }
+.alertes li.infraction { background: var(--danger-tint); border-color: #f5c6c1; color: #8f1d14; }
+.frise .bloc.pause { background: repeating-linear-gradient(45deg, var(--gris) 0 3px, #d7dae0 3px 6px); }
+.pause-ligne { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line-strong); color: var(--ink-2); font-size: 14px; align-items: center; }
+.pause-ligne .heure { width: 48px; font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
+.conducteur-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 0 0; }
+.conducteur-ligne .select { width: auto; min-height: 32px; font-size: 14px; }
+details.restants { margin-bottom: 24px; }
+details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .barre-outils { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
 
 /* ---------- Pages publiques ---------- */

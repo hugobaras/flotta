@@ -65,7 +65,7 @@ def test_time_windows_are_respected_and_waiting_is_reported():
 
 
 def test_service_time_is_added_between_stops():
-    s = optimiser(pb([CommandeOpt(1, service_min=30), CommandeOpt(2, service_min=45)], positions=[10, 20]))
+    s = optimiser(pb([CommandeOpt(1, service_min=30), CommandeOpt(2, service_min=45)], positions=[10, 20], pauses=False))
     a, b = s.routes[0].arrets
     assert abs((b.arrivee_min - a.depart_min) - 10) < 0.01  # 10 km à 60 km/h = 10 min de trajet
     assert abs((a.depart_min - a.arrivee_min) - (30 if a.commande_id == 1 else 45)) < 0.01
@@ -171,3 +171,60 @@ def test_calculation_time_parameter_is_a_maximum():
     debut = time.time()
     optimiser(probleme_100_commandes(1))
     assert time.time() - debut < 6
+
+
+# --- Temps de conduite réglementaires ---
+
+
+def test_vehicle_driving_cap_is_a_hard_limit_and_explained():
+    cmds = [CommandeOpt(i, service_min=5) for i in range(1, 5)]
+    s = optimiser(pb(cmds, [VehiculeOpt(1, "A", conduite_max_min=150)], positions=[30, 60, 90, 120], pauses=False, duree_max_min=900))
+    for r in s.routes:
+        assert r.trajet_s <= 150 * 60
+    assert len(servies(s)) < 4 and all("conduite" in x.lower() or "Capacité" in x for x in raisons(s).values())
+
+
+def test_order_beyond_the_driving_cap_is_reported_with_the_driving_reason():
+    s = optimiser(pb([CommandeOpt(1)], [VehiculeOpt(1, "A", conduite_max_min=90)], positions=[60]))  # 2 h d'aller-retour pour 1 h 30 permises
+    assert servies(s) == [] and raisons(s)[1].startswith("Temps de conduite")
+
+
+def test_earliest_start_of_a_driver_delays_the_route():
+    s = optimiser(pb([CommandeOpt(1)], [VehiculeOpt(1, "A", debut_min=9 * 60)], positions=[10], ouverture_min=6 * 60))
+    assert s.routes[0].depart_min >= 9 * 60 - 1e-6 and s.routes[0].arrets[0].arrivee_min >= 9 * 60 + 10
+
+
+def test_break_time_is_counted_when_checking_a_time_window():
+    # 5 h de route à l'aller : une pause de 45 min est obligatoire, l'arrivée au plus tôt est donc 5 h 45 après l'ouverture
+    s = optimiser(pb([CommandeOpt(1, fin_min=6 * 60 + 5 * 60 + 30)], [VehiculeOpt(1, "A", conduite_max_min=700)], positions=[300],
+                     ouverture_min=6 * 60, fermeture_min=23 * 60, duree_max_min=900))
+    assert servies(s) == [] and "Fenêtre horaire inaccessible" in raisons(s)[1]
+    s = optimiser(pb([CommandeOpt(1, fin_min=6 * 60 + 5 * 60 + 50)], [VehiculeOpt(1, "A", conduite_max_min=700)], positions=[300],
+                     ouverture_min=6 * 60, fermeture_min=23 * 60, duree_max_min=900))
+    assert servies(s) == [1]
+
+
+def test_pessimistic_break_model_never_underestimates_real_arrival_times():
+    """Garantie de cohérence : avec les pauses réelles placées au dernier moment, aucun arrêt n'est atteint plus tard que prévu."""
+    from app import regulations as reg
+    cmds = [CommandeOpt(i, service_min=20) for i in range(1, 8)]
+    positions = [60, 140, 200, 270, 330, 370, 420]
+    m = ligne(*positions)
+    s = optimiser(pb(cmds, [VehiculeOpt(1, "A", conduite_max_min=700)], positions=positions, matrices={"A": m}, duree_max_min=900,
+                     fermeture_min=23 * 60, temps_calcul_s=3))
+    for r in s.routes:
+        p, prec = reg.demarrer(r.depart_min), 0
+        for a in r.arrets:
+            ligne_i = a.commande_id
+            reg.conduire(p, m[prec][ligne_i] / 60)
+            reel = p.t
+            assert reel <= a.arrivee_min + 1e-6, (a.commande_id, reel, a.arrivee_min)
+            reg.travailler(p, 20)
+            prec = ligne_i
+        assert p.chrono.infractions == []
+
+
+def test_total_driving_of_every_route_respects_each_vehicle_cap():
+    s = optimiser(probleme_100_commandes(5))
+    for r in s.routes:
+        assert r.trajet_s <= 540 * 60 + 1

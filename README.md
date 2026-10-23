@@ -66,3 +66,7 @@ Squelette du module « contrôle avant départ ». Contexte et étapes : `claude
 - Verrouillage d'un arrêt ou d'une tournée : un élément verrouillé ne se déplace plus et n'est pas touché par « Réoptimiser (hors verrouillés) ». Un arrêt verrouillé reste sur son camion mais peut changer de place dans la tournée.
 - Annuler / rétablir : historique de toutes les modifications d'un plan. « Enregistrer une version » copie le plan courant sous un nom ; les versions du jour sont dans le sélecteur.
 - Les routes des plans sont identifiées par véhicule et par commande (pas par identifiant de ligne) : les identifiants de lignes changent à chaque recalcul.
+
+## Temps de conduite (étape 9)
+
+Module isolé `api/app/regulations/` (règlement CE 561/2006), intégré à l'optimisation et au planning : pauses de 45 min insérées dans les tournées, plafonds de conduite et heure de départ par conducteur, historiques déclarés par conducteur, alertes d'infraction après une modification manuelle, temps de conduite restants par conducteur. Détail des règles, des choix et **des points à vérifier avec le texte officiel** : [docs/temps-de-conduite.md](docs/temps-de-conduite.md).

@@ -5,7 +5,11 @@ correspond à la commande i - 1 de `Probleme.commandes`.
 """
 from dataclasses import dataclass, field
 
+import math
+
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+
+from .regulations import constantes as reg
 
 INJOIGNABLE_S = 3 * 86400  # durée donnée par le service de routage aux trajets sans chemin
 PENALITE_NON_AFFECTEE = 10_000_000
@@ -20,6 +24,8 @@ class VehiculeOpt:
     palettes: int | None = None
     frigo: bool = False
     adr: bool = False
+    conduite_max_min: float = reg.CONDUITE_JOUR  # conduite effective maximale de la tournée (9 h, ou ce qui reste au conducteur)
+    debut_min: int | None = None  # plus tôt pour partir (repos journalier du conducteur à respecter)
 
 
 @dataclass
@@ -45,6 +51,7 @@ class Probleme:
     fermeture_min: int = 19 * 60
     duree_max_min: int = 10 * 60
     temps_calcul_s: int = 10
+    pauses: bool = True  # tient compte des pauses de 45 min toutes les 4 h 30 de conduite
 
 
 @dataclass
@@ -80,8 +87,18 @@ def _tient(c: CommandeOpt, v: VehiculeOpt) -> bool:
             and (v.palettes is None or c.palettes <= v.palettes))
 
 
+def avec_pauses(conduite_min: float, active: bool = True) -> float:
+    """Durée écoulée pour `conduite_min` de conduite : une pause de 45 min chaque fois que 4 h 30 sont dépassées."""
+    if not active or conduite_min <= 0:
+        return conduite_min
+    return conduite_min + reg.PAUSE * max(0, math.ceil(conduite_min / reg.CONDUITE_CONTINUE_MAX - 1e-9) - 1)
+
+
 def _hhmm(minutes: float) -> str:
     return f"{int(minutes) // 60:02d}:{int(minutes) % 60:02d}"
+
+
+PRIORITE = ["inaccessible", "conduite", "fenetre", "duree", "retour"]
 
 
 def _raison_infaisable(i: int, c: CommandeOpt, p: Probleme) -> str | None:
@@ -93,30 +110,30 @@ def _raison_infaisable(i: int, c: CommandeOpt, p: Probleme) -> str | None:
     compat = [v for v in compat if _tient(c, v)]
     if not compat:
         return "Capacité : la commande dépasse la capacité de tous les véhicules compatibles"
-    meilleur = None
+    echecs: dict[str, str] = {}
     for v in compat:
         m = p.matrices[v.profil]
-        aller, retour = m[0][i], m[i][0]
-        if aller >= INJOIGNABLE_S or retour >= INJOIGNABLE_S:
+        aller, retour = m[0][i] / 60, m[i][0] / 60
+        if aller * 60 >= INJOIGNABLE_S or retour * 60 >= INJOIGNABLE_S:
+            echecs.setdefault("inaccessible", "Adresse inaccessible par la route avec le gabarit de la flotte")
             continue
-        meilleur = min(meilleur or 10**12, aller + retour)
-        arrivee_min = max(p.ouverture_min * 60 + aller, (c.debut_min or 0) * 60) / 60
-        if c.fin_min is not None and p.ouverture_min * 60 + aller > c.fin_min * 60:
+        if aller + retour > v.conduite_max_min + 1e-9:
+            echecs.setdefault("conduite", f"Temps de conduite : l'aller-retour ({_hhmm(aller + retour)}) dépasse la limite de conduite de {_hhmm(v.conduite_max_min)}")
             continue
-        fin = arrivee_min + c.service_min + retour / 60
-        if fin > p.fermeture_min or (aller + retour) / 60 + c.service_min > p.duree_max_min:
+        debut = max(p.ouverture_min, v.debut_min or 0)
+        arrivee = debut + avec_pauses(aller, p.pauses)
+        if c.fin_min is not None and arrivee > c.fin_min:
+            echecs.setdefault("fenetre", f"Fenêtre horaire inaccessible : arrivée au plus tôt à {_hhmm(arrivee)}, fenêtre close à {_hhmm(c.fin_min)}")
+            continue
+        total = avec_pauses(aller + retour, p.pauses) + c.service_min
+        if total > p.duree_max_min:
+            echecs.setdefault("duree", "Durée maximale de tournée dépassée dès le premier arrêt")
+            continue
+        if max(arrivee, c.debut_min or 0) + c.service_min + avec_pauses(aller + retour, p.pauses) - avec_pauses(aller, p.pauses) > p.fermeture_min:
+            echecs.setdefault("retour", "Retour au dépôt impossible avant la fermeture")
             continue
         return None
-    if meilleur is None:
-        return "Adresse inaccessible par la route avec le gabarit de la flotte"
-    # Faisable matériellement mais pas dans les horaires : on précise lequel.
-    v0 = min(compat, key=lambda v: p.matrices[v.profil][0][i])
-    aller = p.matrices[v0.profil][0][i]
-    if c.fin_min is not None and p.ouverture_min * 60 + aller > c.fin_min * 60:
-        return f"Fenêtre horaire inaccessible : arrivée au plus tôt à {_hhmm(p.ouverture_min + aller / 60)}, fenêtre close à {_hhmm(c.fin_min)}"
-    if (meilleur / 60) + c.service_min > p.duree_max_min:
-        return "Durée maximale de tournée dépassée dès le premier arrêt"
-    return "Retour au dépôt impossible avant la fermeture"
+    return echecs[next(k for k in PRIORITE if k in echecs)]
 
 
 def _raison_probable(c: CommandeOpt, p: Probleme, restantes: list[CommandeOpt]) -> str:
@@ -160,8 +177,11 @@ def optimiser(p: Probleme) -> Solution:
         m = p.matrices[prof]
         cb_cout[prof] = routing.RegisterTransitCallback(
             lambda a, b, m=m: int(m[noeuds[manager.IndexToNode(a)]][noeuds[manager.IndexToNode(b)]]))
+        # Les pauses obligatoires sont modélisées par un surcoût proportionnel au trajet (pause de 45 min par 4 h 30 de conduite) :
+        # toujours supérieur au nombre réel de pauses, donc un plan réalisable ici l'est aussi une fois les pauses placées exactement.
+        facteur = 1 + reg.PAUSE / reg.CONDUITE_CONTINUE_MAX if p.pauses else 1
         cb_temps[prof] = routing.RegisterTransitCallback(
-            lambda a, b, m=m: int(m[noeuds[manager.IndexToNode(a)]][noeuds[manager.IndexToNode(b)]])
+            lambda a, b, m=m, f=facteur: int(m[noeuds[manager.IndexToNode(a)]][noeuds[manager.IndexToNode(b)]] * f)
             + (commande(manager.IndexToNode(a)).service_min * 60 if manager.IndexToNode(a) else 0))
     for v, veh in enumerate(p.vehicules):
         routing.SetArcCostEvaluatorOfVehicle(cb_cout[veh.profil], v)
@@ -171,7 +191,7 @@ def optimiser(p: Probleme) -> Solution:
     temps = routing.GetDimensionOrDie("Temps")
     temps.SetGlobalSpanCostCoefficient(0)
     for v in range(nv):
-        temps.CumulVar(routing.Start(v)).SetRange(p.ouverture_min * 60, horizon)
+        temps.CumulVar(routing.Start(v)).SetRange(max(p.ouverture_min, p.vehicules[v].debut_min or 0) * 60, horizon)
         temps.CumulVar(routing.End(v)).SetRange(p.ouverture_min * 60, horizon)
         temps.SetSpanUpperBoundForVehicle(p.duree_max_min * 60, v)
         temps.SetSpanCostCoefficientForVehicle(1, v)  # évite les attentes inutiles
@@ -180,6 +200,10 @@ def optimiser(p: Probleme) -> Solution:
         debut = (c.debut_min or 0) * 60
         fin = min((c.fin_min * 60) if c.fin_min is not None else horizon, horizon)
         temps.CumulVar(manager.NodeToIndex(n)).SetRange(max(debut, p.ouverture_min * 60), max(fin, debut))
+
+    # Conduite effective (hors services et pauses) : plafonnée par véhicule (9 h, ou ce qui reste au conducteur affecté).
+    routing.AddDimensionWithVehicleTransitAndCapacity([cb_cout[v.profil] for v in p.vehicules], 0,
+                                                      [int(v.conduite_max_min * 60) for v in p.vehicules], True, "Conduite")
 
     def capacite(nom, valeurs, echelle, getter):
         cb = routing.RegisterUnaryTransitCallback(lambda i: int(round(getter(commande(manager.IndexToNode(i))) * echelle)) if manager.IndexToNode(i) else 0)

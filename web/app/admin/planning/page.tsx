@@ -1,18 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Carte, { Point, Trace } from "../../lib/Carte";
 import { Cadenas, Plaque } from "../../ui";
 
 type Arret = { id: number; ordre: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; verrouille: boolean; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; fenetre_fin: string | null };
-type Tournee = { id: number; vehicle_id: number; plaque: string; depart_min: number; retour_min: number; distance_km: number; charge_kg: number; charge_palettes: number; verrouille: boolean; arrets: Arret[] };
+type Tournee = { id: number; vehicle_id: number; plaque: string; depart_min: number; retour_min: number; distance_km: number; charge_kg: number; charge_palettes: number; verrouille: boolean; arrets: Arret[]; conducteur_id: number | null; conduite_min: number; pauses: [number, number][]; plafond_conduite_min: number | null; conduite_restante_min: number | null };
+type ConducteurInfo = { id: number; nom: string; vehicle_id: number | null; conduite_jour_min: number; conduite_jour_normale_min: number; conduite_semaine_min: number; extensions_restantes: number; debut_possible_min: number };
 type NonAffectee = { order_id: number; reference?: string; adresse?: string; raison: string };
-type Indic = { km: number; duree_min: number; nb_tournees: number; remplissage_pct: number | null; nb_alertes: number; nb_non_affectees: number };
-type Alerte = { type: string; message: string; route_vehicle_id: number; commande_id: number | null };
+type Indic = { km: number; duree_min: number; nb_tournees: number; remplissage_pct: number | null; nb_alertes: number; nb_non_affectees: number; nb_infractions?: number };
+type Alerte = { type: string; message: string; route_vehicle_id: number; commande_id: number | null; gravite: "infraction" | "avertissement" };
 type Plan = {
   id: number; jour: string; statut: "en_attente" | "en_cours" | "termine" | "echec"; progression: number; message: string | null; nom: string | null;
   resume: (Indic & { vehicules_exclus: { plaque: string; raison: string }[] }) | null; reference: Indic | null; routes: Tournee[]; non_affectees: NonAffectee[];
-  alertes: Alerte[]; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string }[];
+  alertes: Alerte[]; conducteurs: ConducteurInfo[]; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string }[];
 };
 
 const COULEURS = ["#111418", "#e5560a", "#1a7f4b", "#2b6cb0", "#8a3ffc", "#c77700", "#d3281b", "#0f8b8d"];
@@ -74,7 +75,7 @@ export default function Planning() {
     const r = await fetch("/api/admin/plans", { method: "POST", headers: json, body: JSON.stringify({ jour, temps_max_s: tempsMax }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return setErreur(typeof j.detail === "string" ? j.detail : "Impossible de lancer le calcul.");
-    setPlan({ id: j.id, jour, statut: "en_attente", progression: 0, message: null, nom: null, resume: null, reference: null, routes: [], non_affectees: [], alertes: [], peut_annuler: false, peut_retablir: false, versions: [] });
+    setPlan({ id: j.id, jour, statut: "en_attente", progression: 0, message: null, nom: null, resume: null, reference: null, routes: [], non_affectees: [], alertes: [], conducteurs: [], peut_annuler: false, peut_retablir: false, versions: [] });
     lire(j.id);
   }
 
@@ -154,7 +155,22 @@ export default function Planning() {
             <div><dt>Non affectées</dt><dd>{plan!.resume.nb_non_affectees}<Delta valeur={plan!.resume.nb_non_affectees} ref={ref?.nb_non_affectees} /></dd></div>
           </dl>
           {plan!.resume.vehicules_exclus.length > 0 && <div className="notice" role="status">Camions non planifiés : {plan!.resume.vehicules_exclus.map((e) => `${e.plaque} (${e.raison.toLowerCase()})`).join(", ")}</div>}
-          {plan!.alertes.length > 0 && <ul className="alertes" role="alert" aria-label="Alertes du plan">{plan!.alertes.map((a, i) => <li key={i}>{a.message}</li>)}</ul>}
+          {plan!.alertes.length > 0 && <ul className="alertes" role="alert" aria-label="Alertes du plan">{plan!.alertes.map((a, i) => <li key={i} className={a.gravite === "infraction" ? "infraction" : ""}>{a.gravite === "infraction" && <strong>Infraction · </strong>}{a.message}</li>)}</ul>}
+
+          {plan!.conducteurs.length > 0 && (
+            <details className="restants">
+              <summary>Temps de conduite restants des conducteurs</summary>
+              <table className="rack">
+                <thead><tr><th>Conducteur</th><th>Aujourd'hui</th><th>Semaine</th><th>Extensions à 10 h</th><th>Départ possible</th></tr></thead>
+                <tbody>
+                  {plan!.conducteurs.map((c) => (
+                    <tr key={c.id}><td>{c.nom}</td><td className="num">{duree(c.conduite_jour_normale_min)}{c.conduite_jour_min > c.conduite_jour_normale_min && ` (jusqu'à ${duree(c.conduite_jour_min)})`}</td><td className="num">{duree(c.conduite_semaine_min)}</td><td className="num">{c.extensions_restantes}</td><td className="num">{hhmm(c.debut_possible_min)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="hint" style={{ marginTop: 6 }}>Calculés à partir des activités déclarées (page Flotte, onglet Conducteurs). Sans historique, un conducteur est supposé reposé.</p>
+            </details>
+          )}
 
           <div className="split">
             <div>
@@ -170,9 +186,23 @@ export default function Planning() {
                     </span>
                     <small>{t.arrets.length ? `${hhmm(t.depart_min)} → ${hhmm(t.retour_min)} · ${t.distance_km} km · ${t.charge_kg} kg · ${t.charge_palettes} pal.` : "Aucun arrêt"}</small>
                   </h2>
+                  <div className="conducteur-ligne">
+                    <label className="hint" htmlFor={`cd-${t.vehicle_id}`}>Conducteur</label>
+                    <select id={`cd-${t.vehicle_id}`} className="select" disabled={t.verrouille} value={t.conducteur_id ?? ""}
+                      onChange={(e) => appeler("affecter", { vehicle_id: t.vehicle_id, conducteur_id: e.target.value ? Number(e.target.value) : null })}>
+                      <option value="">Sans conducteur (règles par tournée)</option>
+                      {plan!.conducteurs.map((c) => <option key={c.id} value={c.id} disabled={c.vehicle_id !== null && c.vehicle_id !== t.vehicle_id}>{c.nom}</option>)}
+                    </select>
+                    {t.arrets.length > 0 && t.plafond_conduite_min !== null && (
+                      <span className={t.conduite_restante_min !== null && t.conduite_restante_min < 0 ? "delta pire" : "muted"}>
+                        Conduite {duree(t.conduite_min)} sur {duree(t.plafond_conduite_min)} · {t.pauses.length} pause{t.pauses.length > 1 ? "s" : ""} de 45 min
+                      </span>
+                    )}
+                  </div>
                   {t.arrets.length > 0 && (
                     <>
                       <div className="frise" role="img" aria-label={`Frise horaire de ${t.plaque}`}>
+                        {t.pauses.map(([d, f]) => <span key={d} className="bloc pause" title={`Pause ${hhmm(d)}-${hhmm(f)}`} style={{ left: pos(d), width: `max(4px, calc(${pos(f)} - ${pos(d)}))` }} />)}
                         {t.arrets.map((a) => (
                           <span key={a.id}>
                             {a.attente_min >= 1 && <span className="attente" style={{ left: pos(a.arrivee_min - a.attente_min), width: `calc(${pos(a.arrivee_min)} - ${pos(a.arrivee_min - a.attente_min)})` }} />}
@@ -186,7 +216,11 @@ export default function Planning() {
                   )}
                   <ol className="items" style={{ borderBottom: 0 }}>
                     {t.arrets.map((a, n) => (
-                      <li key={a.id}
+                      <Fragment key={a.id}>
+                      {t.pauses.filter(([, f]) => f <= a.arrivee_min && (n === 0 || f > t.arrets[n - 1].arrivee_min)).map(([d, f]) => (
+                        <li key={`p${d}`} className="pause-ligne"><span className="heure">{hhmm(d)}</span><span className="corps">Pause obligatoire de {Math.round(f - d)} min <span className="muted">(4 h 30 de conduite, règlement CE 561/2006)</span></span></li>
+                      ))}
+                      <li
                         className={`stop ${a.verrouille || t.verrouille ? "verrou" : ""} ${sur === `s${a.order_id}` ? "sur" : ""}`}
                         draggable={!a.verrouille && !t.verrouille}
                         onDragStart={() => setGlisse(a.order_id)}
@@ -204,6 +238,10 @@ export default function Planning() {
                         <button className="btn btn-ghost btn-icon" aria-pressed={a.verrouille} aria-label={`${a.verrouille ? "Déverrouiller" : "Verrouiller"} ${a.reference}`} disabled={t.verrouille}
                           onClick={() => appeler("verrouiller", { order_id: a.order_id, verrouille: !a.verrouille })}><Cadenas ferme={a.verrouille} /></button>
                       </li>
+                      </Fragment>
+                    ))}
+                    {t.pauses.filter(([d]) => t.arrets.length > 0 && d >= t.arrets[t.arrets.length - 1].depart_min).map(([d, f]) => (
+                      <li key={`pf${d}`} className="pause-ligne"><span className="heure">{hhmm(d)}</span><span className="corps">Pause obligatoire de {Math.round(f - d)} min sur le retour</span></li>
                     ))}
                   </ol>
                 </section>
