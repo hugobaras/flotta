@@ -20,6 +20,11 @@ class Company(Base):
     alert_emails: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")  # destinataires des alertes
     logo_fichier: Mapped[str | None] = mapped_column(String(100))
     rappel_envoye_le: Mapped[date | None] = mapped_column(Date)  # un seul rappel par jour et par société
+    # Hypothèses d'estimation des coûts d'un itinéraire (sans API payante), réglables par société.
+    cout_km_eur: Mapped[float] = mapped_column(Float, default=0, server_default="0")  # coût d'exploitation hors carburant et péages
+    conso_l_100km: Mapped[float] = mapped_column(Float, default=32, server_default="32")
+    prix_carburant_eur_l: Mapped[float] = mapped_column(Float, default=1.7, server_default="1.7")
+    peage_eur_km: Mapped[float] = mapped_column(Float, default=0, server_default="0")  # appliqué si l'itinéraire emprunte un péage
 
 
 class User(Base):

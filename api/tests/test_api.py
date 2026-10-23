@@ -399,7 +399,8 @@ def test_reminder_lists_unchecked_vehicles_after_threshold(a, client):
 
 def test_settings_admin_only_and_validated(a, client):
     assert a.get("/api/admin/parametres").json() == {
-        "heure_rappel": "08:00", "retention_jours": 1095, "alert_emails": [], "logo": False}
+        "heure_rappel": "08:00", "retention_jours": 1095, "alert_emails": [], "logo": False,
+        "cout_km_eur": 0, "conso_l_100km": 32, "prix_carburant_eur_l": 1.7, "peage_eur_km": 0}
     assert a.patch("/api/admin/parametres", json={"heure_rappel": "07:30"}).status_code == 403
     make_admin(client, "a@a.fr")
     assert a.patch("/api/admin/parametres", json={"heure_rappel": "25:00"}).status_code == 422
