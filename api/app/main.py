@@ -1,14 +1,14 @@
-import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .auth import current_user, router as auth_router
 from .checklists import CHECKLIST
-from .db import Base, SessionLocal, engine, get_db
-from .models import Check, Company, Vehicle
+from .db import SessionLocal, get_db
+from .models import Check, Company, User, Vehicle
 
 DEMO_TOKEN = "demo"
 
@@ -17,8 +17,7 @@ def seed_demo():
     with SessionLocal() as db:
         if db.scalar(select(Company)):
             return
-        # Clé de démo : à surcharger via l'environnement hors développement.
-        company = Company(nom="Société démo", api_key=os.getenv("DEMO_API_KEY", "dev-demo-key"))
+        company = Company(nom="Société démo")
         db.add(company)
         db.flush()
         db.add(Vehicle(company_id=company.id, plaque="AB-123-CD", token=DEMO_TOKEN))
@@ -27,20 +26,12 @@ def seed_demo():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Provisoire : create_all sera remplacé par Alembic à l'étape 1.
-    Base.metadata.create_all(engine)
-    seed_demo()
+    seed_demo()  # le schéma vient d'Alembic : `alembic upgrade head`
     yield
 
 
 app = FastAPI(title="Transport SaaS", lifespan=lifespan)
-
-
-def current_company(x_api_key: str = Header(), db: Session = Depends(get_db)) -> Company:
-    company = db.scalar(select(Company).where(Company.api_key == x_api_key))
-    if not company:
-        raise HTTPException(401, "Clé API invalide")
-    return company
+app.include_router(auth_router)
 
 
 def vehicle_by_token(token: str, db: Session) -> Vehicle:
@@ -101,15 +92,15 @@ def post_controle(token: str, body: ControleIn, db: Session = Depends(get_db)):
 
 
 @app.get("/api/admin/vehicules")
-def list_vehicules(company: Company = Depends(current_company), db: Session = Depends(get_db)):
-    rows = db.scalars(select(Vehicle).where(Vehicle.company_id == company.id))
+def list_vehicules(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rows = db.scalars(select(Vehicle).where(Vehicle.company_id == user.company_id))
     return [{"id": v.id, "plaque": v.plaque, "token": v.token, "bloque": v.bloque} for v in rows]
 
 
 @app.get("/api/admin/controles")
-def list_controles(company: Company = Depends(current_company), db: Session = Depends(get_db)):
+def list_controles(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(
-        select(Check).where(Check.company_id == company.id).order_by(Check.created_at.desc())
+        select(Check).where(Check.company_id == user.company_id).order_by(Check.created_at.desc())
     )
     return [
         {"id": c.id, "vehicle_id": c.vehicle_id, "conducteur": c.conducteur,
@@ -119,9 +110,9 @@ def list_controles(company: Company = Depends(current_company), db: Session = De
 
 
 @app.post("/api/admin/vehicules/{vehicle_id}/debloquer")
-def debloquer(vehicle_id: int, company: Company = Depends(current_company),
+def debloquer(vehicle_id: int, user: User = Depends(current_user),
               db: Session = Depends(get_db)):
-    v = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.company_id == company.id))
+    v = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.company_id == user.company_id))
     if not v:
         raise HTTPException(404, "Véhicule inconnu")
     v.bloque = False

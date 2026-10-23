@@ -16,7 +16,6 @@ services:
     build: ./api
     environment:
       DATABASE_URL: postgresql+psycopg://transport:${POSTGRES_PASSWORD:-transport-dev}@db/transport
-      DEMO_API_KEY: ${DEMO_API_KEY:-dev-demo-key}
     depends_on:
       db:
         condition: service_healthy
