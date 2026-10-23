@@ -271,3 +271,75 @@ def test_deleting_a_plan_removes_its_history(a, client, plan):
 def test_edit_routes_require_login(client):
     for url in ("deplacer", "verrouiller", "annuler", "retablir", "versions", "reoptimiser"):
         assert client.post(f"/api/admin/plans/1/{url}", json={}).status_code == 401
+
+
+# ---------------------------------------------------------------- Rotations : modifications à la main
+
+
+@pytest.fixture
+def rotations(a, client, calcul):  # noqa: F811
+    """Un camion de 10 palettes et trois commandes de 8 : trois rotations d'un arrêt chacune."""
+    from test_plans import commandes_de_8_palettes
+    camion(a, "AA-100-AA", palettes=10)
+    depot(a)
+    commandes_de_8_palettes(client)
+    pid = lancer(a, temps_max_s=3)
+    executer(client, pid)
+    r = route_de(get(a, pid), "AA-100-AA")
+    assert [s["rotation"] for s in r["arrets"]] == [1, 2, 3]
+    return pid, r["vehicle_id"], [s["order_id"] for s in r["arrets"]]
+
+
+def test_moving_a_stop_into_another_rotation_overloads_it_and_says_so(a, rotations):
+    pid, vid, (o1, o2, o3) = rotations
+    d = deplacer_rot(a, pid, o2, vid, rotation=1).json()
+    r = d["routes"][0]
+    assert [(s["order_id"], s["rotation"]) for s in r["arrets"]] == [(o1, 1), (o2, 1), (o3, 2)]  # la rotation 2 vidée disparaît : 3 devient 2
+    assert [x["charge_palettes"] for x in r["rotations"]] == [16, 8]
+    assert [x["type"] for x in d["alertes"]] == ["surcharge"] and "rotation 1" in d["alertes"][0]["message"]
+
+
+def test_a_new_rotation_can_be_opened_and_the_count_is_capped_by_the_plan(a, client, calcul):
+    from test_plans import commandes_de_8_palettes
+    camion(a, "AA-100-AA", palettes=40)
+    depot(a)
+    commandes_de_8_palettes(client)
+    pid = lancer(a, rotations_max=2)
+    executer(client, pid)
+    r = route_de(get(a, pid), "AA-100-AA")
+    vid, (o1, o2, o3) = r["vehicle_id"], [s["order_id"] for s in r["arrets"]]
+    assert {s["rotation"] for s in r["arrets"]} == {1}
+    d = deplacer_rot(a, pid, o3, vid, rotation=2).json()
+    assert [s["rotation"] for s in d["routes"][0]["arrets"]] == [1, 1, 2]
+    refus = deplacer_rot(a, pid, o1, vid, rotation=3)  # 3 > 2 autorisées : demande ramenée à « la suivante » (3) puis refusée
+    assert refus.status_code == 409 and "2 rotations" in refus.json()["detail"]
+
+
+def test_a_stop_inserted_without_rotation_takes_its_neighbours(a, rotations):
+    pid, vid, (o1, o2, o3) = rotations
+    d = deplacer_rot(a, pid, o3, vid, position=1).json()  # entre le 1er arrêt (rot. 1) et le 2e (rot. 2) : il prend la rotation du précédent
+    assert [(s["order_id"], s["rotation"]) for s in d["routes"][0]["arrets"]] == [(o1, 1), (o3, 1), (o2, 2)]
+
+
+def test_moving_the_only_stop_of_a_rotation_out_renumbers_the_rest(a, rotations):
+    pid, vid, (o1, o2, o3) = rotations
+    d = deplacer(a, pid, o2, None).json()
+    assert [(s["order_id"], s["rotation"]) for s in d["routes"][0]["arrets"]] == [(o1, 1), (o3, 2)] and len(d["non_affectees"]) == 1
+
+
+def test_undo_restores_the_rotation_structure(a, rotations):
+    pid, vid, (o1, o2, o3) = rotations
+    deplacer_rot(a, pid, o2, vid, rotation=1)
+    d = a.post(f"/api/admin/plans/{pid}/annuler").json()
+    assert [s["rotation"] for s in d["routes"][0]["arrets"]] == [1, 2, 3] and d["alertes"] == []
+
+
+def test_rotation_times_in_the_saved_plan_respect_the_loading_time(a, rotations):
+    pid, vid, _ = rotations
+    r = get(a, pid)["routes"][0]
+    for x, y in zip(r["rotations"], r["rotations"][1:]):
+        assert y["depart_min"] >= x["retour_min"] + 45 - 1e-6
+
+
+def deplacer_rot(c, pid, order_id, vehicle_id, position=None, rotation=None):
+    return c.post(f"/api/admin/plans/{pid}/deplacer", json={"order_id": order_id, "vehicle_id": vehicle_id, "position": position, "rotation": rotation})

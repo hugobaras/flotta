@@ -153,3 +153,26 @@ def test_return_after_closing_is_reported_once_for_the_whole_day():
 def test_rotation_numbers_are_normalised(entree, n, attendu):
     from app.planning import normaliser_rotations
     assert normaliser_rotations(entree, n) == attendu
+
+
+def test_live_simulation_returns_to_depot_before_the_next_rotation():
+    from app.planning import simuler_depuis
+    ctx = contexte([cmd(1), cmd(2)], positions=[10, 20])
+    # Camion à 10 km (position du 1er arrêt) à 7 h, rotation 1 ; reste l'arrêt 2 en rotation 2 :
+    # retour au dépôt 10 min -> 7 h 10, rechargement 45 -> 7 h 55, trajet 20 -> 8 h 15 (arrivée), service 15, retour 20 -> 8 h 50
+    s = simuler_depuis(ctx, 1, [2], depuis_ligne=1, depuis_min=7 * 60, rotations=[2], rotation_depuis=1)
+    assert s.arrets[0].arrivee_min == 8 * 60 + 15 and s.retour_min == 8 * 60 + 50 and s.distance_km == 10 + 20 + 20
+
+
+def test_live_simulation_without_rotation_change_goes_straight_on():
+    from app.planning import simuler_depuis
+    ctx = contexte([cmd(1), cmd(2)], positions=[10, 20])
+    s = simuler_depuis(ctx, 1, [2], depuis_ligne=1, depuis_min=7 * 60, rotations=[2], rotation_depuis=2)
+    assert s.arrets[0].arrivee_min == 7 * 60 + 10 and s.distance_km == 10 + 20
+
+
+def test_live_simulation_does_not_reload_twice_for_a_truck_still_at_the_depot():
+    from app.planning import simuler_depuis
+    ctx = contexte([cmd(1)], positions=[10])
+    s = simuler_depuis(ctx, 1, [1], depuis_ligne=0, depuis_min=6 * 60, rotations=[2], rotation_depuis=1)
+    assert s.arrets[0].arrivee_min == 6 * 60 + 10

@@ -345,8 +345,10 @@ def _renumeroter(route: dict):
         a["rotation"] = n
 
 
-def deplacer_etat(etat: dict, order_id: int, vehicle_id: int | None, position: int | None) -> dict:
-    """Déplace un arrêt dans un état (copie modifiée) : vers un camion à une position, ou hors du plan."""
+def deplacer_etat(etat: dict, order_id: int, vehicle_id: int | None, position: int | None, rotation: int | None = None) -> dict:
+    """Déplace un arrêt dans un état (copie modifiée) : vers un camion à une position, ou hors du plan.
+    Sans `rotation`, l'arrêt prend celle de son voisin ; avec `rotation`, il rejoint cette rotation (position dans la rotation, fin par défaut),
+    et un numéro supérieur au dernier en ouvre une nouvelle."""
     etat = _copie(etat)
     source = next((r for r in etat["routes"] if any(a["order_id"] == order_id for a in r["arrets"])), None)
     non_aff = next((n for n in etat["non_affectees"] if n["order_id"] == order_id), None)
@@ -371,14 +373,33 @@ def deplacer_etat(etat: dict, order_id: int, vehicle_id: int | None, position: i
     if cible is None:
         etat["non_affectees"].append({"order_id": order_id, "raison": "Retirée du plan à la main"})
     else:
-        pos = len(cible["arrets"]) if position is None else max(0, min(position, len(cible["arrets"])))
-        cible["arrets"].insert(pos, arret)
+        _renumeroter(cible)
+        arrets = cible["arrets"]
+        if rotation is not None:
+            derniere = max((a["rotation"] for a in arrets), default=1)
+            rotation = min(rotation, derniere + 1)  # on n'ouvre qu'une rotation à la fois, à la suite des autres
+            dans = [i for i, a in enumerate(arrets) if a["rotation"] == rotation]
+            debut = dans[0] if dans else len(arrets)
+            pos = debut + (len(dans) if position is None else max(0, min(position, len(dans))))
+            arret["rotation"] = rotation
+        else:
+            pos = len(arrets) if position is None else max(0, min(position, len(arrets)))
+            voisin = arrets[pos - 1] if pos else (arrets[0] if arrets else None)
+            arret["rotation"] = voisin["rotation"] if voisin else 1
+        arrets.insert(pos, arret)
+        _renumeroter(cible)
+    if source:
+        _renumeroter(source)  # une rotation vidée disparaît
     return etat
 
 
-def deplacer(db: Session, plan: Plan, order_id: int, vehicle_id: int | None, position: int | None):
+def deplacer(db: Session, plan: Plan, order_id: int, vehicle_id: int | None, position: int | None, rotation: int | None = None):
     """Déplace un arrêt vers un autre camion (ou dans le même) à la position donnée, ou le rend non affecté."""
-    pousser(db, plan, deplacer_etat(charger_etat(db, plan), order_id, vehicle_id, position), "Déplacement d'un arrêt")
+    etat = deplacer_etat(charger_etat(db, plan), order_id, vehicle_id, position, rotation)
+    maxi = plan.parametres.get("rotations_max", 3)
+    if any(a["rotation"] > maxi for r in etat["routes"] for a in r["arrets"]):
+        raise ModificationRefusee(f"Ce plan autorise {maxi} rotation{'s' if maxi > 1 else ''} au plus par camion")
+    pousser(db, plan, etat, "Déplacement d'un arrêt")
 
 
 def verrouiller(db: Session, plan: Plan, vehicle_id: int | None, order_id: int | None, verrouille: bool):

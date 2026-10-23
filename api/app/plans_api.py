@@ -113,12 +113,13 @@ class Deplacement(BaseModel):
     order_id: int
     vehicle_id: int | None = None  # None : devient non affectée
     position: int | None = Field(default=None, ge=0)
+    rotation: int | None = Field(default=None, ge=1, le=3)  # rotation visée ; sinon celle du voisin
 
 
 @router.post("/{plan_id}/deplacer")
 def deplacer(plan_id: int, body: Deplacement, user: User = Depends(current_user), db: Session = Depends(get_db)):
     p = _plan(db, user, plan_id)
-    return _appliquer(db, p, lambda: plans.deplacer(db, p, body.order_id, body.vehicle_id, body.position))
+    return _appliquer(db, p, lambda: plans.deplacer(db, p, body.order_id, body.vehicle_id, body.position, body.rotation))
 
 
 class Verrou(BaseModel):

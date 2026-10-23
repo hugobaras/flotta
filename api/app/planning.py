@@ -263,15 +263,25 @@ class Simulation:
 
 
 def simuler_depuis(ctx: Contexte, vehicule_id: int, restants: list[int], depuis_ligne: int, depuis_min: float,
-                   chrono: "reg.Chrono | None" = None, ajustement=None) -> Simulation:
-    """Simule la fin de tournée depuis la position et l'heure réelles. `ajustement(i, j)` peut renvoyer une durée (min) observée en direct."""
+                   chrono: "reg.Chrono | None" = None, ajustement=None, rotations: list[int] | None = None,
+                   rotation_depuis: int | None = None) -> Simulation:
+    """Simule la fin de tournée depuis la position et l'heure réelles. `ajustement(i, j)` peut renvoyer une durée (min) observée en direct.
+    `rotations` : rotation de chaque arrêt restant ; quand elle change (y compris depuis `rotation_depuis`, celle de la position actuelle),
+    le camion repasse par le dépôt et recharge."""
     v = ctx.vehicules[vehicule_id]
     dur, dist = ctx.durees[v.profil], ctx.distances[v.profil]
     cmds = [ctx.commandes[c] for c in restants]
     p = reg.demarrer(depuis_min, chrono or reg.Chrono())
     arrets, retards, km, prec = [], [], 0.0, depuis_ligne
-    for c in cmds:
+    for k, c in enumerate(cmds):
         ligne = ctx.ligne[c.id]
+        avant = rotation_depuis if k == 0 else (rotations[k - 1] if rotations else None)
+        if rotations and avant is not None and rotations[k] != avant and prec != 0:  # fin de rotation : retour au dépôt, rechargement
+            trajet = ajustement(prec, 0) if ajustement else None
+            reg.conduire(p, trajet if trajet is not None else dur[prec][0] / 60)
+            km += dist[prec][0]
+            reg.travailler(p, ctx.rechargement_min)
+            prec = 0
         trajet = ajustement(prec, ligne) if ajustement else None
         reg.conduire(p, (trajet if trajet is not None else dur[prec][ligne] / 60))
         km += dist[prec][ligne]
