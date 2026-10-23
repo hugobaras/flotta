@@ -56,11 +56,12 @@ export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" }) 
   );
 }
 
-export function FlotteTabs({ actif }: { actif: "vehicules" | "conducteurs" }) {
+export function FlotteTabs({ actif }: { actif: "vehicules" | "conducteurs" | "depots" }) {
   return (
     <nav className="filtres" aria-label="Flotte">
       <a className="filtre" href="/admin/flotte" aria-current={actif === "vehicules" ? "page" : undefined} style={{ textDecoration: "none" }}>Véhicules</a>
       <a className="filtre" href="/admin/conducteurs" aria-current={actif === "conducteurs" ? "page" : undefined} style={{ textDecoration: "none" }}>Conducteurs</a>
+      <a className="filtre" href="/admin/depots" aria-current={actif === "depots" ? "page" : undefined} style={{ textDecoration: "none" }}>Dépôts</a>
     </nav>
   );
 }
