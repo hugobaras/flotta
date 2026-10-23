@@ -12,3 +12,5 @@ uploads/
 valhalla/custom_files/
 
 public/maplibre/
+
+.DS_Store
