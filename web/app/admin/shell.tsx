@@ -8,8 +8,7 @@ import { Brand } from "../ui";
 const NAV = [
   { href: "/admin", label: "Tableau de bord", exact: true },
   { href: "/admin/controles", label: "Contrôles" },
-  { href: "/admin/checklists", label: "Checklists" },
-  { href: "/admin/parametres", label: "Paramètres" },
+  { href: "/admin/parametres", label: "Réglages", aussi: "/admin/checklists" },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -34,8 +33,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="band-in">
           <Brand href="/admin" />
           <nav className="nav" aria-label="Navigation principale">
-            {NAV.map(({ href, label, exact }) => (
-              <Link key={href} href={href} aria-current={(exact ? path === href : path.startsWith(href)) ? "page" : undefined}>{label}</Link>
+            {NAV.map(({ href, label, exact, aussi }) => (
+              <Link key={href} href={href} aria-current={(exact ? path === href : path.startsWith(href) || (aussi && path.startsWith(aussi))) ? "page" : undefined}>{label}</Link>
             ))}
           </nav>
           <div className="who">

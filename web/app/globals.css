@@ -152,7 +152,7 @@ td, th, .num { font-variant-numeric: tabular-nums; }
   background: none; cursor: pointer; font-weight: 500; color: var(--ink-3); transition: color 0.15s var(--ease);
 }
 .filtre:hover { color: var(--ink); }
-.filtre[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.filtre[aria-pressed="true"], .filtre[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink); }
 .filtre .count { font-variant-numeric: tabular-nums; color: var(--ink-3); font-weight: 400; }
 .filtre[aria-pressed="true"] .count { color: var(--ink-2); }
 
@@ -185,6 +185,8 @@ td, th, .num { font-variant-numeric: tabular-nums; }
   .rack-cards tbody tr:hover td:first-child, .rack-cards tbody tr:hover td:last-child { box-shadow: none; }
   .rack-cards td.full { flex: 1 1 100%; }
   .rack-cards td.right { margin-left: auto; }
+  .rack-cards .deblocage { padding: 0 0 16px; }
+  .rack-cards .deblocage td { flex: 1 1 100%; }
 }
 
 /* ---------- Dialogue ---------- */
@@ -198,6 +200,16 @@ dialog.dialog[open] { animation: pop 0.22s var(--ease); }
 .dialog form { display: grid; gap: 20px; padding: 24px; }
 .dialog h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+/* Ligne de déblocage */
+.deblocage td { padding-top: 0; }
+.deblocage:hover { background: none !important; }
+.deblocage form { display: grid; gap: 12px; padding: 16px; background: var(--white); border: 1px solid var(--line-strong); border-radius: var(--r); }
+.deblocage .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line-strong); border-radius: 999px; background: var(--white); padding: 4px 12px; font-size: 14px; cursor: pointer; color: var(--ink-2); }
+.chip:hover { border-color: var(--ink); color: var(--ink); }
+.deblocage .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.deblocage .row .input { flex: 1 1 260px; }
 
 /* ---------- Pages publiques ---------- */
 .public { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
@@ -243,6 +255,33 @@ dialog.dialog[open] { animation: pop 0.22s var(--ease); }
 .result p { max-width: 30ch; font-size: 17px; color: var(--ink-2); }
 .result .mark { animation: appear 0.5s var(--ease); }
 @keyframes appear { from { opacity: 0; transform: scale(0.8); } }
+
+/* Parcours par étapes */
+.stack-form { display: grid; gap: 24px; margin-top: 8px; }
+.step-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.progress { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin-bottom: 40px; }
+.progress span { display: block; height: 100%; background: var(--ink); transition: width 0.3s var(--ease); }
+.driver h1.question { font-size: 32px; line-height: 1.15; margin: 0 0 12px; }
+.big-seg { display: grid; gap: 12px; margin-top: 28px; }
+.big-seg button {
+  min-height: 84px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--white); color: var(--ink);
+  font-size: 26px; font-weight: 500; letter-spacing: -0.02em; cursor: pointer;
+  transition: background 0.12s var(--ease), color 0.12s var(--ease), border-color 0.12s var(--ease);
+}
+.big-seg button:hover { border-color: var(--ink); }
+.big-seg button:active { transform: scale(0.99); }
+.big-seg button[aria-checked="true"].ok { background: var(--ink); border-color: var(--ink); color: #fff; }
+.big-seg button[aria-checked="true"].ko { background: var(--rouge); border-color: var(--rouge); color: #fff; }
+.defaut-detail { display: grid; gap: 16px; margin-top: 24px; }
+.step-foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 32px; }
+.link-btn { background: none; border: 0; padding: 8px 0; min-height: 44px; color: var(--ink-2); font-weight: 500; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.link-btn:hover { color: var(--ink); text-decoration-color: var(--ink); }
+.link-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.recap { font-size: 18px; margin-bottom: 12px; }
+.recap-list { margin: 0 0 8px; padding-left: 20px; }
+.recap-list li { padding: 2px 0; }
+.signature-wrap { display: grid; gap: 4px; justify-items: start; margin-top: 20px; }
+.signature-wrap .signature { justify-self: stretch; }
 
 /* ---------- Détail d'un contrôle ---------- */
 .detail-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }

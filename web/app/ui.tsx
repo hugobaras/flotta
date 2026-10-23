@@ -47,6 +47,15 @@ export function Chevron({ sens }: { sens: "haut" | "bas" }) {
   );
 }
 
+export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" }) {
+  return (
+    <nav className="filtres" aria-label="Réglages">
+      <a className="filtre" href="/admin/checklists" aria-current={actif === "checklists" ? "page" : undefined} style={{ textDecoration: "none" }}>Checklists</a>
+      <a className="filtre" href="/admin/parametres" aria-current={actif === "parametres" ? "page" : undefined} style={{ textDecoration: "none" }}>Alertes et société</a>
+    </nav>
+  );
+}
+
 export function BandeauPublic() {
   return (
     <header className="band">

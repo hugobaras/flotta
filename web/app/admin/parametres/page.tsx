@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ReglagesTabs } from "../../ui";
 
 type Params = { heure_rappel: string; retention_jours: number; alert_emails: string[]; logo: boolean };
 type Message = { ok: boolean; texte: string } | null;
@@ -50,14 +51,15 @@ export default function Parametres() {
     <>
       <div className="page-head">
         <div>
-          <h1>Paramètres</h1>
+          <h1>Réglages</h1>
           <p>Alertes, rappels et conservation des données de votre société.</p>
         </div>
       </div>
+      <ReglagesTabs actif="parametres" />
 
       {message && <div className={`notice ${message.ok ? "ok" : "danger"}`} role="status">{message.texte}</div>}
 
-      <form className="section" style={{ marginTop: 0 }} onSubmit={enregistrer}>
+      <form className="section" style={{ marginTop: 32 }} onSubmit={enregistrer}>
         <h2>Alertes et rappels</h2>
         <div className="setting">
           <label htmlFor="emails">Destinataires des alertes<span className="hint">Un email par ligne, 10 au maximum. Ils reçoivent l'alerte de défaut critique et le rappel quotidien.</span></label>

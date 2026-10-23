@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Chevron } from "../../ui";
+import { Chevron, ReglagesTabs } from "../../ui";
 
 type Item = { id: number; libelle: string; critique: boolean; actif: boolean };
 type Modele = { id: number; nom: string; vehicle_type: string; items: Item[] };
@@ -38,13 +38,14 @@ export default function Checklists() {
     <>
       <div className="page-head">
         <div>
-          <h1>Checklists</h1>
+          <h1>Réglages</h1>
           <p>Les points que le chauffeur contrôle avant de partir. Un point critique bloque le camion s'il est en défaut.</p>
         </div>
       </div>
+      <ReglagesTabs actif="checklists" />
 
       {modeles.map((m) => (
-        <section key={m.id} className="section" style={{ marginTop: 0 }} aria-labelledby={`m${m.id}`}>
+        <section key={m.id} className="section" style={{ marginTop: 32 }} aria-labelledby={`m${m.id}`}>
           <h2 id={`m${m.id}`}>{m.nom} <small>{TYPES[m.vehicle_type] ?? m.vehicle_type}</small></h2>
           <ol className="items">
             {m.items.map((i, n) => (
