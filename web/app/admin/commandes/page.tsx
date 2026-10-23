@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Carte, { Point } from "../../lib/Carte";
-import { CommandesTabs } from "../../ui";
+import { CommandesTabs, Info } from "../../ui";
 
 type Commande = {
   id: number; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; geo_statut: string;
@@ -142,6 +142,7 @@ export default function Commandes() {
       <div className="filtres" role="group" aria-label="Afficher">
         <button className="filtre" aria-pressed={filtre === "toutes"} onClick={() => setFiltre("toutes")}>Toutes <span className="count">{liste.length}</span></button>
         <button className="filtre" aria-pressed={filtre === "verifier"} onClick={() => setFiltre("verifier")}>Adresses à vérifier <span className="count">{nbVerifier}</span></button>
+        <Info>Adresses introuvables ou douteuses : cliquez sur la carte pour placer le point à la main.</Info>
       </div>
 
       {liste.length === 0 ? (

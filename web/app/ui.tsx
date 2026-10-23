@@ -31,6 +31,15 @@ export function Brand({ href }: { href?: string }) {
   return href ? <a className="brand" href={href}>{contenu}</a> : <div className="brand">{contenu}</div>;
 }
 
+export function Info({ children }: { children: React.ReactNode }) {
+  return (
+    <details className="info">
+      <summary aria-label="Aide">?</summary>
+      <span role="note">{children}</span>
+    </details>
+  );
+}
+
 export function Coche({ ok }: { ok: boolean }) {
   return (
     <svg className={`coche ${ok ? "coche-ok" : "coche-ko"}`} viewBox="0 0 16 16" width="16" height="16" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={ok ? "Conforme" : "Défaut"}>

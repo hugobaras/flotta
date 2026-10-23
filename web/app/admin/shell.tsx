@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Brand } from "../ui";
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/admin/commandes", label: "Commandes", aussi: "/admin/itineraires" },
   { href: "/admin/planning", label: "Planning" },
   { href: "/admin/parametres", label: "Réglages", aussi: "/admin/checklists" },
+  { href: "/admin/demarrer", label: "Démarrer" },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       setPlateforme(me.role === "plateforme");
     });
   }, []);
+
+  const dialogue = useRef<HTMLDialogElement>(null);
+  const [message, setMessage] = useState("");
+  const [envoi, setEnvoi] = useState<"" | "ok" | "ko">("");
+
+  async function signaler(e: React.FormEvent) {
+    e.preventDefault();
+    const r = await fetch("/api/admin/signalements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, page: window.location.pathname, navigateur: navigator.userAgent }) });
+    setEnvoi(r.ok ? "ok" : "ko");
+    if (r.ok) setMessage("");
+  }
 
   async function deconnexion() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -50,6 +62,25 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="wrap">{children}</main>
+      <footer className="pied-app">
+        <button className="link-btn" onClick={() => { setEnvoi(""); dialogue.current?.showModal(); }}>Signaler un problème</button>
+      </footer>
+      <dialog ref={dialogue} className="dialog" aria-labelledby="signal-titre">
+        <form onSubmit={signaler} style={{ display: "grid", gap: 14, padding: 24 }}>
+          <div>
+            <h2 id="signal-titre">Signaler un problème</h2>
+            <p className="muted" style={{ marginTop: 6 }}>Décrivez ce qui ne va pas. La page, votre société et la version sont jointes automatiquement.</p>
+          </div>
+          {envoi === "ok" ? <div className="notice" role="status" style={{ margin: 0 }}>Merci, votre message est transmis.</div> : (
+            <textarea className="input" required minLength={3} maxLength={2000} rows={5} aria-label="Votre message" value={message} onChange={(e) => setMessage(e.target.value)} />
+          )}
+          {envoi === "ko" && <div className="notice danger" role="alert" style={{ margin: 0 }}>Envoi impossible, réessayez.</div>}
+          <div className="dialog-actions">
+            <button type="button" className="btn" onClick={() => dialogue.current?.close()}>Fermer</button>
+            {envoi !== "ok" && <button className="btn btn-primary">Envoyer</button>}
+          </div>
+        </form>
+      </dialog>
     </>
   );
 }

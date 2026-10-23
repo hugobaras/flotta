@@ -413,3 +413,15 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
   .offres { grid-template-columns: 1fr; }
   .pied { padding: 40px 16px 56px; }
 }
+
+/* Mise en route, aide, signalement */
+.demarrage { list-style: none; margin: 24px 0 0; padding: 0; max-width: 760px; }
+.demarrage li { display: flex; gap: 16px; align-items: center; padding: 16px 0; border-top: 1px solid var(--line); }
+.demarrage .rond { display: inline-block; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: 50%; vertical-align: middle; }
+.info { display: inline-block; position: relative; margin-left: 6px; vertical-align: middle; }
+.info summary { list-style: none; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--ink-3); font-size: 12px; display: grid; place-items: center; }
+.info summary::-webkit-details-marker { display: none; }
+.info[open] summary { background: var(--ink); color: #fff; border-color: var(--ink); }
+.info span { position: absolute; z-index: 5; left: 0; top: 26px; width: 260px; padding: 10px 12px; background: var(--white); border: 1px solid var(--line-strong); border-radius: var(--r); font-size: 13px; line-height: 1.45; color: var(--ink-2); font-weight: 400; }
+.pied-app { max-width: 1120px; margin: 0 auto; padding: 0 32px 48px; }
+@media (max-width: 800px) { .pied-app { padding: 0 16px 40px; } }

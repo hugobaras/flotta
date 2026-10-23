@@ -118,3 +118,11 @@ Offre Pro. Clés API et webhooks se gèrent dans **Réglages → Intégrations**
 ## Production, sécurité et RGPD (étape 14)
 
 Déploiement (Caddy en HTTPS, sauvegardes S3, restauration), supervision (`/api/health`, Sentry, UptimeRobot), procédure d'incident : [docs/exploitation.md](docs/exploitation.md). RGPD : [registre des traitements](docs/rgpd/registre-traitements.md) et [modèle de contrat de sous-traitance](docs/rgpd/contrat-sous-traitance.md), à faire relire par un juriste. Journal d'audit des actions sensibles (déblocage, suppressions, clés API, changement d'offre) ; export et effacement par conducteur ; la purge automatique couvre aussi les événements de livraison, les activités de conduite et l'historique des webhooks (90 jours). En-têtes de sécurité (API et front), limite de débit par adresse (600 requêtes par minute, pages chauffeur exemptées), page d'état publique `/statut`, audit des dépendances dans la CI (`pip-audit`, `npm audit`).
+
+## Prise en main pour les pilotes (étape 15)
+
+- **Démarrer** (`/admin/demarrer`) : six étapes (flotte, conducteurs, checklists, QR codes, commandes d'essai, premier contrôle) avec ce qui est déjà fait, lu en base (`GET /api/admin/demarrage`).
+- **Données de démonstration** en un clic (administrateur) : 15 camions `DM-…`, 15 conducteurs « Démo n », un dépôt et 80 commandes `DEMO-…` du jour, déjà localisées autour de Nantes (aucun appel externe). `DELETE /api/admin/demo` retire uniquement ces données et ce qui s'y rattache.
+- **Aide** : infobulles `?` sur le planning, les conducteurs et les commandes ; guides d'une page par module en PDF (`/aide/*.pdf`), générés depuis `docs/client/*.md` par `scripts/guides_pdf.py`.
+- **Signaler un problème** (pied de page de l'espace exploitant) : message enregistré avec la page, la société, la version (`APP_VERSION`) et le navigateur ; lisible par la plateforme (`GET /api/plateforme/signalements`) ; envoyé par email à `SUPPORT_EMAIL` si Brevo est configuré.
+- Non mesuré : le critère « opérationnel en moins de 30 minutes » demande un essai avec une vraie société vierge.

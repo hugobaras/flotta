@@ -91,6 +91,13 @@ def modifier_abonnement(company_id: int, body: AbonnementPatch, user: User = Dep
     return _ligne(db, c, s)
 
 
+@router.get("/signalements")
+def signalements(_: User = Depends(operateur), db: Session = Depends(get_db)):
+    from .models import Signalement
+    return [{"id": s.id, "email": s.user_email, "message": s.message, "contexte": s.contexte, "date": s.cree_le}
+            for s in db.scalars(select(Signalement).order_by(Signalement.id.desc()).limit(100))]
+
+
 @router.get("/tableau")
 def tableau(_: User = Depends(operateur), db: Session = Depends(get_db)):
     """MRR = abonnements actifs uniquement (les essais et les suspendus ne sont pas facturés)."""
