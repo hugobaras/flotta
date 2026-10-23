@@ -178,3 +178,85 @@ def reoptimiser(plan_id: int, user: User = Depends(current_user), db: Session = 
         db.commit()
         raise HTTPException(503, "La file de calcul est indisponible : la réoptimisation n'a pas été lancée.")
     return {"id": p.id, "statut": p.statut}
+
+
+# --- Suivi en direct et propositions de replanification (validation explicite requise) ---
+
+
+@router.get("/{plan_id}/suivi")
+def suivi_direct(plan_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from . import livraisons, suivi
+    p = _plan(db, user, plan_id)
+    _terminé(p)
+    return suivi.suivi(db, p, livraisons.maintenant())
+
+
+class DemandePropositions(BaseModel):
+    type: str = Field(pattern=r"^(retard|urgence|panne)$")
+    order_id: int | None = None  # commande urgente
+    vehicle_id: int | None = None  # camion en panne
+
+
+def _commande_urgente(db: Session, user: User, p: Plan, order_id: int | None):
+    from .models import Order
+    if order_id is None:
+        raise HTTPException(422, "Indiquez la commande urgente")
+    o = db.scalar(select(Order).where(Order.id == order_id, Order.company_id == user.company_id))
+    if not o:
+        raise HTTPException(404, "Commande inconnue")
+    if o.date_livraison != p.jour:
+        raise HTTPException(409, "Cette commande n'est pas prévue le jour de ce plan")
+    if o.lat is None:
+        raise HTTPException(409, "L'adresse de cette commande n'est pas localisée : corrigez-la d'abord")
+    if o.statut in ("livre", "echec", "annule"):
+        raise HTTPException(409, "Cette commande est déjà clôturée")
+    if any(a["order_id"] == o.id for r in plans.charger_etat(db, p)["routes"] for a in r["arrets"]):
+        raise HTTPException(409, "Cette commande est déjà dans une tournée de ce plan")
+    return o
+
+
+@router.post("/{plan_id}/propositions")
+def propositions(plan_id: int, body: DemandePropositions, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Propose 2 à 3 solutions chiffrées. Lecture seule : le plan n'est jamais modifié ici."""
+    from . import livraisons, suivi
+    from .routage import RouteurIndisponible
+    p = _plan(db, user, plan_id)
+    _terminé(p)
+    order = _commande_urgente(db, user, p, body.order_id) if body.type == "urgence" else None
+    if body.type == "panne":
+        if body.vehicle_id is None or not any(r["vehicle_id"] == body.vehicle_id for r in plans.charger_etat(db, p)["routes"]):
+            raise HTTPException(404, "Véhicule absent de ce plan")
+    try:
+        liste = suivi.proposer(db, p, body.type, livraisons.maintenant(), order, body.vehicle_id)
+    except RouteurIndisponible:
+        raise HTTPException(503, "Le service de routage est indisponible : impossible de chiffrer l'insertion d'une nouvelle commande.")
+    return {"propositions": liste, "avertissement": "Rien n'est modifié tant que vous n'avez pas validé une proposition."}
+
+
+class Action(BaseModel):
+    order_id: int
+    vehicle_id: int | None = None
+    position: int | None = Field(default=None, ge=0)
+
+
+class Validation(BaseModel):
+    type: str = Field(pattern=r"^(retard|urgence|panne)$")
+    actions: list[Action] = Field(min_length=1, max_length=100)
+    order_id: int | None = None
+    vehicle_id: int | None = None
+
+
+@router.post("/{plan_id}/propositions/appliquer")
+def appliquer_proposition(plan_id: int, body: Validation, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Applique une proposition validée par l'exploitant (une seule étape d'historique, annulable)."""
+    from . import suivi
+    from .routage import RouteurIndisponible
+    p = _plan(db, user, plan_id)
+    order = _commande_urgente(db, user, p, body.order_id) if body.type == "urgence" else None
+    if body.type == "urgence" and not any(a.order_id == order.id for a in body.actions):
+        raise HTTPException(422, "L'action doit placer la commande urgente")
+    try:
+        return _appliquer(db, p, lambda: suivi.appliquer(db, p, body.type, [a.model_dump() for a in body.actions], order, body.vehicle_id))
+    except RouteurIndisponible:
+        db.rollback()
+        raise HTTPException(503, "Le service de routage est indisponible : impossible d'insérer une nouvelle commande.")

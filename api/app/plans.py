@@ -219,9 +219,9 @@ def _veh_opt_ctx(v: planning.VehiculeInfo, ctx: planning.Contexte, conducteur_id
 # ---------------------------------------------------------------- état, historique, recalcul
 
 
-def contexte(db: Session, plan: Plan) -> planning.Contexte:
+def contexte(db: Session, plan: Plan, matrices_: dict | None = None) -> planning.Contexte:
     depot = _depot(db, plan)
-    m = plan.matrices or {}
+    m = matrices_ if matrices_ is not None else (plan.matrices or {})
     ligne = {oid: i for i, oid in enumerate(m.get("commandes", [])) if i > 0}
     vehicules: dict[int, planning.VehiculeInfo] = {}
     for cle, prof in m.get("profils", {}).items():
@@ -232,12 +232,14 @@ def contexte(db: Session, plan: Plan) -> planning.Contexte:
                                              _minutes(o.fenetre_fin), o.duree_service_min, o.frigo, o.adr)
                  for o in db.scalars(select(Order).where(Order.company_id == plan.company_id, Order.id.in_(list(ligne))))} if ligne else {}
     ouverture = _minutes(depot.ouverture)
+    positions = {o.id: o for o in db.scalars(select(Order).where(Order.company_id == plan.company_id, Order.id.in_(list(ligne))))} if ligne else {}
     pilotes = list(db.scalars(select(Driver).where(Driver.company_id == plan.company_id, Driver.actif.is_(True)).order_by(Driver.nom)))
     return planning.Contexte(ouverture, _minutes(depot.fermeture), plan.parametres.get("duree_max_min", 600), commandes, vehicules,
                              ligne, {k: p["durations"] for k, p in m.get("profils", {}).items()},
                              {k: p["distances"] for k, p in m.get("profils", {}).items()},
                              compteurs={d.id: conduite.compteurs(db, d.id, plan.jour, ouverture) for d in pilotes},
-                             noms_conducteurs={d.id: d.nom for d in pilotes}, minuit=conduite.minuit(plan.jour))
+                             noms_conducteurs={d.id: d.nom for d in pilotes}, minuit=conduite.minuit(plan.jour),
+                             positions={0: (depot.lat, depot.lng), **{ligne[o]: (c.lat, c.lng) for o, c in positions.items() if o in ligne}})
 
 
 def charger_etat(db: Session, plan: Plan) -> dict:
@@ -330,9 +332,9 @@ def _copie(etat: dict) -> dict:
     return {"routes": [{**r, "arrets": [dict(a) for a in r["arrets"]]} for r in etat["routes"]], "non_affectees": [dict(n) for n in etat["non_affectees"]]}
 
 
-def deplacer(db: Session, plan: Plan, order_id: int, vehicle_id: int | None, position: int | None):
-    """Déplace un arrêt vers un autre camion (ou dans le même) à la position donnée, ou le rend non affecté."""
-    etat = _copie(charger_etat(db, plan))
+def deplacer_etat(etat: dict, order_id: int, vehicle_id: int | None, position: int | None) -> dict:
+    """Déplace un arrêt dans un état (copie modifiée) : vers un camion à une position, ou hors du plan."""
+    etat = _copie(etat)
     source = next((r for r in etat["routes"] if any(a["order_id"] == order_id for a in r["arrets"])), None)
     non_aff = next((n for n in etat["non_affectees"] if n["order_id"] == order_id), None)
     if not source and not non_aff:
@@ -350,16 +352,20 @@ def deplacer(db: Session, plan: Plan, order_id: int, vehicle_id: int | None, pos
         raise ModificationRefusee("La tournée de destination est verrouillée : déverrouillez-la d'abord")
     if source:
         source["arrets"] = [a for a in source["arrets"] if a["order_id"] != order_id]
-        arret = {"order_id": order_id, "verrouille": False}
     else:
         etat["non_affectees"] = [n for n in etat["non_affectees"] if n["order_id"] != order_id]
-        arret = {"order_id": order_id, "verrouille": False}
+    arret = {"order_id": order_id, "verrouille": False}
     if cible is None:
         etat["non_affectees"].append({"order_id": order_id, "raison": "Retirée du plan à la main"})
     else:
         pos = len(cible["arrets"]) if position is None else max(0, min(position, len(cible["arrets"])))
         cible["arrets"].insert(pos, arret)
-    pousser(db, plan, etat, "Déplacement d'un arrêt")
+    return etat
+
+
+def deplacer(db: Session, plan: Plan, order_id: int, vehicle_id: int | None, position: int | None):
+    """Déplace un arrêt vers un autre camion (ou dans le même) à la position donnée, ou le rend non affecté."""
+    pousser(db, plan, deplacer_etat(charger_etat(db, plan), order_id, vehicle_id, position), "Déplacement d'un arrêt")
 
 
 def verrouiller(db: Session, plan: Plan, vehicle_id: int | None, order_id: int | None, verrouille: bool):
