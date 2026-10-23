@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import securite
+from .accueil import router as accueil_router
 from .audit import router as audit_router
 from .rgpd import router as rgpd_router
 from .securite import configurer_journaux
@@ -79,6 +80,7 @@ app.include_router(integrations_router)
 installer_docs(app)
 app.include_router(plateforme_router)
 app.include_router(audit_router)
+app.include_router(accueil_router)
 app.include_router(rgpd_router)
 app.include_router(offres_router)
 app.include_router(tournees_admin)

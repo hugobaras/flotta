@@ -95,6 +95,17 @@ class AuditLog(Base):
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class Signalement(Base):
+    """« Signaler un problème » : message de l'utilisateur et contexte capturé automatiquement."""
+    __tablename__ = "signalements"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    user_email: Mapped[str] = mapped_column(String(254))
+    message: Mapped[str] = mapped_column(Text)
+    contexte: Mapped[dict] = mapped_column(JSON)  # page, société, version, navigateur
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
