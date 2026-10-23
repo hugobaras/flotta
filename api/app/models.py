@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, String, Text, false
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, String, Text, UniqueConstraint, false, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -41,12 +41,39 @@ class Session(Base):
 
 class Vehicle(Base):
     __tablename__ = "vehicles"
+    __table_args__ = (UniqueConstraint("company_id", "plaque", name="uq_vehicle_plaque"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     plaque: Mapped[str] = mapped_column(String(20))
     token: Mapped[str] = mapped_column(String(64), unique=True)
     type: Mapped[str] = mapped_column(String(30), default="poids_lourd", server_default="poids_lourd")
     bloque: Mapped[bool] = mapped_column(default=False)
+    actif: Mapped[bool] = mapped_column(default=True, server_default=true())
+    # Gabarit (mètres, kilogrammes), utilisé par le routage poids lourd.
+    hauteur_m: Mapped[float | None] = mapped_column(Float)
+    largeur_m: Mapped[float | None] = mapped_column(Float)
+    longueur_m: Mapped[float | None] = mapped_column(Float)
+    ptac_kg: Mapped[int | None]
+    charge_utile_kg: Mapped[int | None]
+    essieux: Mapped[int | None]
+    # Capacité de chargement.
+    palettes: Mapped[int | None]
+    capacite_kg: Mapped[int | None]
+    capacite_m3: Mapped[float | None] = mapped_column(Float)
+    adr: Mapped[bool] = mapped_column(default=False, server_default=false())
+    frigo: Mapped[bool] = mapped_column(default=False, server_default=false())
+
+
+class Driver(Base):
+    __tablename__ = "drivers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    nom: Mapped[str] = mapped_column(String(100))
+    # HMAC du code PIN (jamais le PIN en clair) : permet de retrouver le conducteur sans parcourir des hachages lents.
+    pin_hash: Mapped[str] = mapped_column(String(64))
+    vehicule_habituel_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"))
+    actif: Mapped[bool] = mapped_column(default=True, server_default=true())
+    __table_args__ = (UniqueConstraint("company_id", "pin_hash", name="uq_driver_pin"),)
 
 
 class ChecklistTemplate(Base):
@@ -74,6 +101,10 @@ class Check(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), index=True)
     conducteur: Mapped[str] = mapped_column(String(100))
+    conducteur_id: Mapped[int | None] = mapped_column(ForeignKey("drivers.id"))
+    # Identifiant généré par le téléphone : rejouer un envoi (réseau coupé) ne crée jamais de doublon.
+    client_id: Mapped[str | None] = mapped_column(String(64))
+    recu_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)  # arrivée sur le serveur
     # Copie figée des points au moment du contrôle : [{id, libelle, critique, ok, commentaire}]
     reponses: Mapped[list] = mapped_column(JSON)
     defaut_critique: Mapped[bool] = mapped_column(default=False)
@@ -81,7 +112,8 @@ class Check(Base):
     signature: Mapped[str | None] = mapped_column(Text)  # data URL PNG
     lat: Mapped[float | None] = mapped_column(Float)
     lng: Mapped[float | None] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)  # moment réel du contrôle
+    __table_args__ = (UniqueConstraint("company_id", "client_id", name="uq_check_client"),)
 
 
 class CheckPhoto(Base):

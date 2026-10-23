@@ -10,7 +10,7 @@ export function Macaron({ statut, size }: { statut: Statut; size?: "lg" | "xl" }
     return (
       <svg className="mark" viewBox="0 0 64 64" aria-hidden fill="none" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="32" cy="32" r="30" className={`mark-ring mark-${statut}`} strokeWidth="2" />
-        <path className={`mark-${statut}`} strokeWidth="3.5" d={statut === "controle" ? "M20 33 L28 41 L44 24" : "M23 23 L41 41 M41 23 L23 41"} />
+        <path className={`mark-${statut}`} strokeWidth="3.5" d={statut === "controle" ? "M20 33 L28 41 L44 24" : statut === "non_controle" ? "M21 32 H43" : "M23 23 L41 41 M41 23 L23 41"} />
       </svg>
     );
   }
@@ -52,6 +52,15 @@ export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" }) 
     <nav className="filtres" aria-label="Réglages">
       <a className="filtre" href="/admin/checklists" aria-current={actif === "checklists" ? "page" : undefined} style={{ textDecoration: "none" }}>Checklists</a>
       <a className="filtre" href="/admin/parametres" aria-current={actif === "parametres" ? "page" : undefined} style={{ textDecoration: "none" }}>Alertes et société</a>
+    </nav>
+  );
+}
+
+export function FlotteTabs({ actif }: { actif: "vehicules" | "conducteurs" }) {
+  return (
+    <nav className="filtres" aria-label="Flotte">
+      <a className="filtre" href="/admin/flotte" aria-current={actif === "vehicules" ? "page" : undefined} style={{ textDecoration: "none" }}>Véhicules</a>
+      <a className="filtre" href="/admin/conducteurs" aria-current={actif === "conducteurs" ? "page" : undefined} style={{ textDecoration: "none" }}>Conducteurs</a>
     </nav>
   );
 }

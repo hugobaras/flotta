@@ -1,11 +1,13 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import { enAttente, envoyerUn, mettreEnFile, transitoire, viderLaFile } from "../../lib/offline";
 import { BandeauPublic, Etat, Macaron, Plaque } from "../../ui";
 
 type Item = { id: number; libelle: string; critique: boolean };
 type Controle = { plaque: string; bloque: boolean; checklist: Item[] };
-type Resultat = { bloque: boolean; photosManquantes: number };
+type Resultat = { bloque: boolean; photosManquantes: number; enAttente?: boolean };
+type Identite = { nom: string; badge: string; expire: number };
 
 function position(): Promise<{ lat: number; lng: number } | null> {
   return new Promise((resolve) => {
@@ -19,44 +21,75 @@ function position(): Promise<{ lat: number; lng: number } | null> {
 }
 
 const CLE_NOM = "flotta-nom";
-const lireNom = () => {
-  try { return localStorage.getItem(CLE_NOM) ?? ""; } catch { return ""; }
+const CLE_BADGE = "flotta-badge";
+const lire = (cle: string) => {
+  try { return localStorage.getItem(cle) ?? ""; } catch { return ""; }
 };
-const garderNom = (n: string) => {
-  try { localStorage.setItem(CLE_NOM, n); } catch { /* navigation privée : on ne garde rien */ }
+const ecrire = (cle: string, valeur: string | null) => {
+  try { valeur === null ? localStorage.removeItem(cle) : localStorage.setItem(cle, valeur); } catch { /* navigation privée : on ne garde rien */ }
 };
 
 export default function Controle({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const [data, setData] = useState<Controle | null>(null);
   const [erreur, setErreur] = useState("");
-  const [conducteur, setConducteur] = useState("");
-  const [etape, setEtape] = useState(0); // 0 = nom, 1..n = points, n + 1 = signature et envoi
+  const [identite, setIdentite] = useState<Identite | null>(null);
+  const [pin, setPin] = useState("");
+  const [erreurPin, setErreurPin] = useState("");
+  const [saisieNom, setSaisieNom] = useState(false);
+  const [nom, setNom] = useState("");
+  const [etape, setEtape] = useState(0); // 0 = identification, 1..n = points, n + 1 = signature et envoi
   const [rep, setRep] = useState<Record<number, "ok" | "ko">>({});
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [photos, setPhotos] = useState<File[]>([]);
   const [signe, setSigne] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [echec, setEchec] = useState("");
-  const [erreurNom, setErreurNom] = useState("");
   const [resultat, setResultat] = useState<Resultat | null>(null);
+  const [attente, setAttente] = useState(0);
   const canvas = useRef<HTMLCanvasElement>(null);
   const dessin = useRef(false);
+  const clientId = useRef("");
+
+  const synchroniser = useCallback(async () => {
+    try {
+      const { restants } = await viderLaFile();
+      setAttente(restants);
+    } catch {
+      /* IndexedDB indisponible : rien à synchroniser */
+    }
+  }, []);
 
   useEffect(() => {
-    setConducteur(lireNom());
-  }, []);
+    setNom(lire(CLE_NOM));
+    try {
+      const b: Identite | null = JSON.parse(lire(CLE_BADGE) || "null");
+      if (b && b.expire * 1000 > Date.now()) setIdentite(b);
+    } catch { /* badge illisible : on redemande le code */ }
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    enAttente().then((l) => setAttente(l.length)).catch(() => undefined);
+    synchroniser();
+    window.addEventListener("online", synchroniser);
+    return () => window.removeEventListener("online", synchroniser);
+  }, [synchroniser]);
 
   useEffect(() => {
     fetch(`/api/controle/${token}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status === 409 ? "Aucune checklist n'est configurée pour ce véhicule." : "Ce QR code ne correspond à aucun véhicule."))))
       .then(setData)
-      .catch((e) => setErreur(e.message));
+      .catch((e) => setErreur(e instanceof TypeError ? "Pas de réseau et ce camion n'a jamais été ouvert sur ce téléphone." : e.message));
   }, [token]);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, [etape]);
+
+  const bandeauAttente = attente > 0 && (
+    <div className="notice" role="status">
+      <span><strong>{attente} contrôle{attente > 1 ? "s" : ""} en attente d'envoi.</strong> Il sera envoyé dès que le réseau revient.</span>{" "}
+      <button className="link-btn" onClick={synchroniser}>Envoyer maintenant</button>
+    </div>
+  );
 
   if (erreur) {
     return (
@@ -73,11 +106,16 @@ export default function Controle({ params }: { params: Promise<{ token: string }
       <>
         <BandeauPublic />
         <main className="driver">
+          {bandeauAttente}
           <div className="result" role="status">
-            <Macaron statut={resultat.bloque ? "bloque" : "controle"} size="xl" />
+            <Macaron statut={resultat.enAttente ? "non_controle" : resultat.bloque ? "bloque" : "controle"} size="xl" />
             <Plaque size="xl">{data.plaque}</Plaque>
-            <h1>{resultat.bloque ? "Camion bloqué" : "Contrôle enregistré"}</h1>
-            <p>{resultat.bloque ? "Un défaut critique a été signalé. Ne prenez pas la route et prévenez votre exploitant." : "Vous pouvez prendre la route. Bonne journée."}</p>
+            <h1>{resultat.enAttente ? "Enregistré sur ce téléphone" : resultat.bloque ? "Camion bloqué" : "Contrôle enregistré"}</h1>
+            <p>
+              {resultat.enAttente
+                ? "Pas de réseau pour le moment. Votre contrôle sera envoyé automatiquement dès que la connexion revient. Gardez cette page ouverte ou rouvrez-la plus tard."
+                : resultat.bloque ? "Un défaut critique a été signalé. Ne prenez pas la route et prévenez votre exploitant." : "Vous pouvez prendre la route. Bonne journée."}
+            </p>
             {resultat.photosManquantes > 0 && <p className="muted">{resultat.photosManquantes} photo(s) n'ont pas pu être envoyées.</p>}
           </div>
         </main>
@@ -90,6 +128,37 @@ export default function Controle({ params }: { params: Promise<{ token: string }
   const point = etape >= 1 && etape <= n ? data.checklist[etape - 1] : null;
   const defauts = data.checklist.filter((i) => rep[i.id] === "ko");
   const nbOk = data.checklist.filter((i) => rep[i.id] === "ok").length;
+  const nomAffiche = identite?.nom ?? nom.trim();
+
+  async function identifier(e: React.FormEvent) {
+    e.preventDefault();
+    setErreurPin("");
+    try {
+      const r = await fetch(`/api/controle/${token}/identifier`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
+      if (r.status === 429) return setErreurPin("Trop d'essais. Réessayez dans quelques minutes ou saisissez votre nom.");
+      if (!r.ok) return setErreurPin("Code inconnu. Vérifiez votre code ou saisissez votre nom.");
+      const j: Identite = await r.json();
+      ecrire(CLE_BADGE, JSON.stringify(j));
+      setIdentite(j);
+      setEtape(1);
+    } catch {
+      setSaisieNom(true);
+      setErreurPin("Pas de réseau : saisissez votre nom pour continuer.");
+    }
+  }
+
+  function commencerAvecNom(e: React.FormEvent) {
+    e.preventDefault();
+    if (!nom.trim()) return setErreurPin("Indiquez votre nom pour commencer.");
+    ecrire(CLE_NOM, nom.trim());
+    setEtape(1);
+  }
+
+  function pasMoi() {
+    ecrire(CLE_BADGE, null);
+    setIdentite(null);
+    setPin("");
+  }
 
   function repondre(i: Item, r: "ok" | "ko") {
     setRep({ ...rep, [i.id]: r });
@@ -101,13 +170,6 @@ export default function Controle({ params }: { params: Promise<{ token: string }
     for (const i of data!.checklist) if (!suite[i.id]) suite[i.id] = "ok";
     setRep(suite);
     setEtape(fin);
-  }
-
-  function commencer(e: React.FormEvent) {
-    e.preventDefault();
-    if (!conducteur.trim()) return setErreurNom("Indiquez votre nom pour commencer.");
-    garderNom(conducteur.trim());
-    setEtape(1);
   }
 
   const pt = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -144,25 +206,37 @@ export default function Controle({ params }: { params: Promise<{ token: string }
   async function envoyer() {
     setEnvoi(true);
     setEchec("");
+    if (!clientId.current) clientId.current = crypto.randomUUID(); // le même identifiant à chaque nouvel essai : pas de doublon
+    const pos = await position();
+    const payload = {
+      ...(identite ? { badge: identite.badge } : { conducteur: nom.trim() }),
+      reponses: data!.checklist.map((i) => ({ id: i.id, ok: rep[i.id] !== "ko", commentaire: rep[i.id] === "ko" ? notes[i.id] ?? "" : "" })),
+      signature: signe ? canvas.current!.toDataURL("image/png") : null,
+      fait_le: new Date().toISOString(),
+      ...pos,
+    };
+    const envoiPrepare = { client_id: clientId.current, token, payload, photos: photos as Blob[], cree: Date.now() };
     try {
-      const reponses = data!.checklist.map((i) => ({ id: i.id, ok: rep[i.id] !== "ko", commentaire: rep[i.id] === "ko" ? notes[i.id] ?? "" : "" }));
-      const pos = await position();
-      const r = await fetch(`/api/controle/${token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conducteur: conducteur.trim(), reponses, signature: signe ? canvas.current!.toDataURL("image/png") : null, ...pos }),
-      });
-      if (!r.ok) throw new Error();
-      const j = await r.json();
-      let manque = 0;
-      for (const f of photos) {
-        const form = new FormData();
-        form.append("photo", f);
-        if (!(await fetch(`/api/controle/${token}/${j.id}/photos`, { method: "POST", body: form })).ok) manque++;
+      const j = await envoyerUn(envoiPrepare);
+      setResultat({ bloque: j.bloque, photosManquantes: j.photosManquantes });
+    } catch (e) {
+      const statut = (e as { statut?: number }).statut;
+      if (transitoire(e, statut)) {
+        try {
+          await mettreEnFile(envoiPrepare);
+          setAttente((await enAttente()).length);
+          setResultat({ bloque: false, photosManquantes: 0, enAttente: true });
+        } catch {
+          setEchec("Pas de réseau et impossible d'enregistrer sur ce téléphone. Réessayez avec du réseau.");
+        }
+      } else if (statut === 401) {
+        ecrire(CLE_BADGE, null);
+        setIdentite(null);
+        setEtape(0);
+        setErreurPin("Votre identification a expiré : saisissez de nouveau votre code.");
+      } else {
+        setEchec("L'envoi a échoué. Réessayez : vos réponses sont conservées.");
       }
-      setResultat({ bloque: j.bloque, photosManquantes: manque });
-    } catch {
-      setEchec("L'envoi a échoué. Vérifiez votre réseau puis réessayez : vos réponses sont conservées.");
     }
     setEnvoi(false);
   }
@@ -173,12 +247,13 @@ export default function Controle({ params }: { params: Promise<{ token: string }
     </div>
   );
 
-  // Étape 0 : qui contrôle.
+  // Étape 0 : qui contrôle ? Un code à 4 chiffres, ou le nom à la main si le réseau manque.
   if (etape === 0) {
     return (
       <>
         <BandeauPublic />
         <main className="driver">
+          {bandeauAttente}
           <div className="driver-id">
             <Plaque size="xl">{data.plaque}</Plaque>
             {data.bloque && <Etat statut="bloque" />}
@@ -189,14 +264,33 @@ export default function Controle({ params }: { params: Promise<{ token: string }
               <span><strong>Ce camion est bloqué.</strong> Un nouveau contrôle ne le débloque pas : contactez votre exploitant.</span>
             </div>
           )}
-          <form onSubmit={commencer} className="stack-form">
-            <div className="field">
-              <label htmlFor="nom">Votre nom</label>
-              <input id="nom" className="input" autoComplete="name" value={conducteur} aria-invalid={!!erreurNom} aria-describedby={erreurNom ? "nom-erreur" : undefined} onChange={(e) => { setConducteur(e.target.value); setErreurNom(""); }} />
-              {erreurNom && <p id="nom-erreur" role="alert" style={{ color: "var(--rouge)", fontWeight: 500 }}>{erreurNom}</p>}
+          {identite ? (
+            <div className="stack-form">
+              <p style={{ fontSize: 20 }}>Bonjour <strong>{identite.nom}</strong></p>
+              <button className="btn btn-primary btn-xl" onClick={() => setEtape(1)}>Commencer ({data.checklist.length} points)</button>
+              <button className="link-btn" onClick={pasMoi} style={{ justifySelf: "start" }}>Ce n'est pas moi</button>
             </div>
-            <button className="btn btn-primary btn-xl" type="submit">Commencer ({n} points)</button>
-          </form>
+          ) : saisieNom ? (
+            <form onSubmit={commencerAvecNom} className="stack-form">
+              <div className="field">
+                <label htmlFor="nom">Votre nom</label>
+                <input id="nom" className="input" autoComplete="name" value={nom} onChange={(e) => { setNom(e.target.value); setErreurPin(""); }} autoFocus />
+              </div>
+              {erreurPin && <p role="alert" style={{ color: "var(--rouge)", fontWeight: 500 }}>{erreurPin}</p>}
+              <button className="btn btn-primary btn-xl" type="submit">Commencer ({data.checklist.length} points)</button>
+              <button type="button" className="link-btn" onClick={() => { setSaisieNom(false); setErreurPin(""); }} style={{ justifySelf: "start" }}>J'ai un code</button>
+            </form>
+          ) : (
+            <form onSubmit={identifier} className="stack-form">
+              <div className="field">
+                <label htmlFor="pin">Votre code à 4 chiffres</label>
+                <input id="pin" className="input pin-input" inputMode="numeric" autoComplete="off" pattern="\d{4}" maxLength={4} value={pin} onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setErreurPin(""); }} aria-invalid={!!erreurPin} aria-describedby={erreurPin ? "pin-erreur" : undefined} autoFocus />
+                {erreurPin && <p id="pin-erreur" role="alert" style={{ color: "var(--rouge)", fontWeight: 500 }}>{erreurPin}</p>}
+              </div>
+              <button className="btn btn-primary btn-xl" type="submit" disabled={pin.length !== 4}>Continuer</button>
+              <button type="button" className="link-btn" onClick={() => { setSaisieNom(true); setErreurPin(""); }} style={{ justifySelf: "start" }}>Je n'ai pas de code : saisir mon nom</button>
+            </form>
+          )}
         </main>
       </>
     );
@@ -256,7 +350,7 @@ export default function Controle({ params }: { params: Promise<{ token: string }
         </div>
         <h1 className="question">Signez pour valider</h1>
         <p className="recap">
-          {nbOk} point{nbOk > 1 ? "s" : ""} OK{defauts.length > 0 && <>, <strong style={{ color: "var(--rouge)" }}>{defauts.length} défaut{defauts.length > 1 ? "s" : ""}</strong></>}
+          {nomAffiche && <>{nomAffiche} · </>}{nbOk} point{nbOk > 1 ? "s" : ""} OK{defauts.length > 0 && <>, <strong style={{ color: "var(--rouge)" }}>{defauts.length} défaut{defauts.length > 1 ? "s" : ""}</strong></>}
         </p>
         {defauts.length > 0 && (
           <ul className="recap-list">
