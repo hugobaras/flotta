@@ -50,6 +50,7 @@ export default function DetailControle({ params }: { params: Promise<{ id: strin
     <main>
       <a href="/admin/controles">← Contrôles</a>
       <h1>{d.plaque}</h1>
+      <p><a href={`/api/admin/controles/${id}/pdf`}>Télécharger le PDF</a></p>
       <p>{d.conducteur} · {new Date(d.created_at).toLocaleString("fr-FR")}{d.defaut_critique && " · défaut critique"}</p>
       <ul>
         {d.reponses.map((r) => (
