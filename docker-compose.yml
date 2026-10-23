@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: transport
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transport-dev}
+      POSTGRES_DB: transport
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transport"]
+      interval: 3s
+      retries: 10
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql+psycopg://transport:${POSTGRES_PASSWORD:-transport-dev}@db/transport
+      DEMO_API_KEY: ${DEMO_API_KEY:-dev-demo-key}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  web:
+    build: ./web
+    environment:
+      PORT: 3000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
