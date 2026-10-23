@@ -379,3 +379,7 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; font-weight: 500; color: var(--muted); font-size: 13px; padding: 8px 12px 8px 0; }
+.table td { padding: 10px 12px 10px 0; border-top: 1px solid var(--line); vertical-align: middle; }

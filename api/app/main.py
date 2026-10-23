@@ -22,6 +22,7 @@ from .exploitation import router as exploitation_router
 from .flotte import router as flotte_router
 from .itineraires import router as itineraires_router
 from .plans_api import router as plans_router
+from .plateforme import router as plateforme_router
 from .tournees import admin as tournees_admin, chauffeur as tournees_chauffeur
 from .models import Alert, Check, CheckPhoto, Company, Driver, User, Vehicle
 from .worker import send_critical_alert
@@ -65,6 +66,7 @@ app.include_router(commandes_router)
 app.include_router(depots_router)
 app.include_router(itineraires_router)
 app.include_router(plans_router)
+app.include_router(plateforme_router)
 app.include_router(tournees_admin)
 app.include_router(tournees_chauffeur)
 

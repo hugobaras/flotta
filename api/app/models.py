@@ -27,6 +27,27 @@ class Company(Base):
     peage_eur_km: Mapped[float] = mapped_column(Float, default=0, server_default="0")  # appliqué si l'itinéraire emprunte un péage
 
 
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), unique=True)
+    offre: Mapped[str] = mapped_column(String(20), default="essentiel")  # essentiel | pro
+    camions_factures: Mapped[int] = mapped_column(default=1)
+    statut: Mapped[str] = mapped_column(String(20), default="actif")  # essai | actif | suspendu
+    debut: Mapped[date] = mapped_column(Date, default=date.today)
+
+
+class Facture(Base):
+    """Devis ou facture émis par la plateforme pour une société cliente (montants en centimes)."""
+    __tablename__ = "factures"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    numero: Mapped[str] = mapped_column(String(20), unique=True)  # FA-2026-0001 / DE-2026-0001
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    type: Mapped[str] = mapped_column(String(10))  # devis | facture
+    emise_le: Mapped[date] = mapped_column(Date)
+    detail: Mapped[dict] = mapped_column(JSON)  # offre, camions, période, remise, TVA et montants figés à l'émission
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
