@@ -8,10 +8,12 @@ import { dateHeure, Empty, Plaque, Statut, STATUT_LABELS, StatusBadge } from "..
 type Ligne = { vehicle_id: number; plaque: string; statut: Statut; controle: { id: number; conducteur: string; created_at: string } | null };
 type Rappels = { heure_rappel: string; vehicules: { id: number; plaque: string }[] };
 
+const aujourdhui = () => new Date().toLocaleDateString("sv-SE"); // AAAA-MM-JJ, jour local
+
 const ORDRE: Statut[] = ["bloque", "defaut", "non_controle", "controle"];
 
 export default function Admin() {
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(aujourdhui);
   const [lignes, setLignes] = useState<Ligne[] | null>(null);
   const [rappels, setRappels] = useState<Rappels | null>(null);
   const [filtre, setFiltre] = useState<Statut | "tous">("tous");
@@ -62,7 +64,7 @@ export default function Admin() {
       <div className="page-header">
         <div>
           <h1>Tableau de bord</h1>
-          <p>État de la flotte {date ? `le ${new Date(date).toLocaleDateString("fr-FR")}` : "aujourd'hui"}.</p>
+          <p>État de la flotte {date && date !== aujourdhui() ? `le ${new Date(date).toLocaleDateString("fr-FR")}` : "aujourd'hui"}.</p>
         </div>
         <div className="input-icon">
           <CalendarDays aria-hidden />
@@ -70,7 +72,7 @@ export default function Admin() {
         </div>
       </div>
 
-      {rappels && rappels.vehicules.length > 0 && !date && (
+      {rappels && rappels.vehicules.length > 0 && date === aujourdhui() && (
         <div className="alert alert-warn" role="status" style={{ marginBottom: 16 }}>
           <Clock aria-hidden />
           <span><strong>{rappels.vehicules.length} camion{rappels.vehicules.length > 1 ? "s" : ""} sans contrôle depuis {rappels.heure_rappel}</strong> : {rappels.vehicules.map((v) => v.plaque).join(", ")}</span>

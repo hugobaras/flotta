@@ -30,6 +30,7 @@ export default function Controle({ params }: { params: Promise<{ token: string }
   const [signe, setSigne] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [echec, setEchec] = useState("");
+  const [erreurNom, setErreurNom] = useState("");
   const [resultat, setResultat] = useState<Resultat | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const dessin = useRef(false);
@@ -98,6 +99,13 @@ export default function Controle({ params }: { params: Promise<{ token: string }
   }
 
   async function envoyer() {
+    if (!conducteur.trim()) {
+      setErreurNom("Indiquez votre nom pour valider le contrôle.");
+      const champ = document.getElementById("nom");
+      champ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      champ?.focus();
+      return;
+    }
     setEnvoi(true);
     setEchec("");
     try {
@@ -140,7 +148,8 @@ export default function Controle({ params }: { params: Promise<{ token: string }
 
       <div className="field">
         <label htmlFor="nom" style={{ fontSize: 17 }}>Votre nom</label>
-        <input id="nom" className="input" autoComplete="name" value={conducteur} onChange={(e) => setConducteur(e.target.value)} />
+        <input id="nom" className="input" autoComplete="name" value={conducteur} aria-invalid={!!erreurNom} aria-describedby={erreurNom ? "nom-erreur" : undefined} onChange={(e) => { setConducteur(e.target.value); setErreurNom(""); }} />
+        {erreurNom && <p id="nom-erreur" role="alert" style={{ color: "var(--danger)", fontWeight: 600 }}>{erreurNom}</p>}
       </div>
 
       <h2>Points à contrôler</h2>
@@ -188,7 +197,7 @@ export default function Controle({ params }: { params: Promise<{ token: string }
 
       <div className="submit-bar">
         <div className="inner">
-          <button className={`btn btn-xl ${nbKo ? "btn-danger" : "btn-primary"}`} onClick={envoyer} disabled={!conducteur.trim() || envoi}>
+          <button className={`btn btn-xl ${nbKo ? "btn-danger" : "btn-primary"}`} onClick={envoyer} disabled={envoi}>
             <Send aria-hidden />
             {envoi ? "Envoi en cours…" : nbKo ? `Valider avec ${nbKo} défaut${nbKo > 1 ? "s" : ""}` : "Valider le contrôle"}
           </button>

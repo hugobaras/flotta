@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23T00:00:00Z",
+  "title": "Design System: Flotta",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Signal Indigo", "canonical": "#4054d6", "tonalRamp": ["#1c2470", "#2a3796", "#3343b4", "#4054d6", "#7381e2", "#a6aeee", "#d0d5f6", "#eceefc"] },
+      "page": { "role": "neutral", "displayName": "Cool Paper", "canonical": "#f6f7f9", "tonalRamp": ["#14171f", "#444b5b", "#667085", "#9aa2b3", "#c9ced9", "#e1e4ea", "#f1f2f6", "#f6f7f9"] },
+      "ok": { "role": "semantic", "displayName": "Cleared Green", "canonical": "#14663f", "tonalRamp": ["#0a3320", "#14663f", "#2f8a5c", "#5fae83", "#8fcaa8", "#b5dec4", "#e4f4ea", "#f2faf5"] },
+      "warn": { "role": "semantic", "displayName": "Caution Amber", "canonical": "#7a4f00", "tonalRamp": ["#3d2800", "#7a4f00", "#b07a12", "#d4a43d", "#e6c06c", "#efd48f", "#fcefd0", "#fef8e8"] },
+      "danger": { "role": "semantic", "displayName": "Stop Red", "canonical": "#b3261e", "tonalRamp": ["#5a130f", "#b3261e", "#d0524a", "#e08780", "#ebaca7", "#f0b9b4", "#fdeae8", "#fff8f7"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Page titles (h1)." },
+      "title": { "displayName": "Title", "purpose": "Panel headings (h2)." },
+      "body": { "displayName": "Body", "purpose": "Default text, 15px." },
+      "label": { "displayName": "Label", "purpose": "Buttons, field labels, tabs, nav." },
+      "caption": { "displayName": "Caption", "purpose": "Table headers and badges." },
+      "driver-body": { "displayName": "Driver body", "purpose": "17px outdoor mobile reading." }
+    },
+    "shadows": [
+      { "name": "resting", "value": "0 1px 2px rgba(20,23,31,0.06), 0 1px 1px rgba(20,23,31,0.04)", "purpose": "Panels, secondary buttons, selected tab." },
+      { "name": "overlay", "value": "0 12px 32px rgba(20,23,31,0.14), 0 2px 8px rgba(20,23,31,0.08)", "purpose": "Dialogs only." },
+      { "name": "submit-bar", "value": "0 -4px 16px rgba(20,23,31,0.06)", "purpose": "Fixed driver submit bar." }
+    ],
+    "motion": [
+      { "name": "ease", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "State transitions, 0.15s; dialog pop 0.2s. Reduced motion collapses all to 0.01ms." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "560px" },
+      { "name": "table-cards", "value": "640px" },
+      { "name": "shell-collapse", "value": "860px" },
+      { "name": "detail-collapse", "value": "960px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button", "kind": "button", "refersTo": "button-primary",
+      "description": "Main action in the operator UI.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Enregistrer</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #c9ced9;background:#fff;color:#14171f;font:550 15px ui-sans-serif,system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 2px rgba(20,23,31,.06)}.ds-btn:hover{background:#f1f2f6}.ds-btn-primary{background:#4054d6;border-color:#4054d6;color:#fff}.ds-btn-primary:hover{background:#3343b4;border-color:#3343b4}.ds-btn-primary:active{background:#2a3796}.ds-btn:focus-visible{outline:2px solid #4054d6;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button", "kind": "button", "refersTo": "button-secondary",
+      "description": "Default neutral action.",
+      "html": "<button class=\"ds-btn2\">Exporter</button>",
+      "css": ".ds-btn2{height:36px;padding:0 14px;border-radius:8px;border:1px solid #c9ced9;background:#fff;color:#14171f;font:550 15px ui-sans-serif,system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 2px rgba(20,23,31,.06)}.ds-btn2:hover{background:#f1f2f6}.ds-btn2:focus-visible{outline:2px solid #4054d6;outline-offset:2px}"
+    },
+    {
+      "name": "Text Input", "kind": "input", "refersTo": "input",
+      "description": "36px field with indigo focus halo.",
+      "html": "<input class=\"ds-input\" placeholder=\"Rechercher\">",
+      "css": ".ds-input{width:220px;height:36px;padding:0 12px;border-radius:8px;border:1px solid #c9ced9;background:#fff;color:#14171f;font:15px ui-sans-serif,system-ui,sans-serif}.ds-input:hover{border-color:#9aa2b3}.ds-input:focus-visible{outline:none;border-color:#4054d6;box-shadow:0 0 0 3px rgba(64,84,214,.2)}"
+    },
+    {
+      "name": "Status Badge (Bloqué)", "kind": "chip", "refersTo": "badge-danger",
+      "description": "State pill: icon plus word, never color alone.",
+      "html": "<span class=\"ds-badge\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polygon points=\"7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2\"/><line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\"/><line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\"/></svg>Bloqué</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 8px;border-radius:999px;font:600 13px/20px ui-sans-serif,system-ui,sans-serif;background:#fdeae8;color:#b3261e}"
+    },
+    {
+      "name": "Panel", "kind": "card", "refersTo": "panel",
+      "description": "White container with hairline border and head/body split.",
+      "html": "<div class=\"ds-panel\"><div class=\"ds-panel-head\">Contrôles récents</div><div class=\"ds-panel-body\">Contenu</div></div>",
+      "css": ".ds-panel{background:#fff;border:1px solid #e1e4ea;border-radius:12px;box-shadow:0 1px 2px rgba(20,23,31,.06);font:15px ui-sans-serif,system-ui,sans-serif;color:#14171f}.ds-panel-head{padding:14px 20px;border-bottom:1px solid #e1e4ea;font-weight:650;font-size:16px}.ds-panel-body{padding:20px}"
+    },
+    {
+      "name": "Nav Item (current)", "kind": "nav", "refersTo": "nav-item-current",
+      "description": "Sidebar link; current page uses Indigo Mist.",
+      "html": "<a class=\"ds-nav\" aria-current=\"page\" href=\"#\">Tableau de bord</a>",
+      "css": ".ds-nav{display:flex;align-items:center;height:36px;padding:0 10px;border-radius:8px;color:#444b5b;font:550 15px ui-sans-serif,system-ui,sans-serif;text-decoration:none}.ds-nav:hover{background:#f1f2f6;color:#14171f}.ds-nav[aria-current=page]{background:#eceefc;color:#2a3796}"
+    },
+    {
+      "name": "Plaque", "kind": "custom", "refersTo": "plaque",
+      "description": "License plate chip, tabular numerals.",
+      "html": "<span class=\"ds-plaque\">AB-123-CD</span>",
+      "css": ".ds-plaque{display:inline-block;padding:1px 8px;border:1px solid #c9ced9;border-radius:6px;background:#fff;font:650 15px ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Driver OK/KO Segment", "kind": "custom", "refersTo": "button-xl",
+      "description": "52px thumb target for outdoor use; selected KO shown.",
+      "html": "<button class=\"ds-seg\">Défaut</button>",
+      "css": ".ds-seg{min-height:52px;padding:0 24px;border-radius:10px;border:1.5px solid #b3261e;background:#fdeae8;color:#b3261e;font:650 17px ui-sans-serif,system-ui,sans-serif;cursor:pointer}.ds-seg:focus-visible{outline:2px solid #4054d6;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Le Registre de Garage",
+    "overview": "Flotta plays the category standard straight for B2B SaaS: cool neutral greys, a single indigo accent, system UI type, tabular numerals, Lucide icons. It is light only, because the office is daylit and drivers work outdoors. Two registers share one set of tokens: a dense calm operator shell and a thumb-sized driver page. State is never carried by color alone.",
+    "keyCharacteristics": [
+      "Cool grey page, white surfaces, hairline borders; depth is mostly borders, not shadows.",
+      "One accent (indigo) for primary action, focus, current navigation and selection.",
+      "Semantic trio (green, amber, red), each as text on a tinted fill, always with icon plus label.",
+      "System font stack at modest sizes; weights 550 to 650 do the hierarchy work.",
+      "Tabular numerals on tables and plates.",
+      "No dark mode."
+    ],
+    "rules": [
+      { "name": "The One Indigo Rule", "body": "Indigo means \"act here\" or \"you are here\". It never encodes status.", "section": "colors" },
+      { "name": "The Never Color Alone Rule", "body": "A state is color plus icon plus text; the badge and alert components enforce it.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Tables, counts, times and plates use tabular numerals.", "section": "typography" },
+      { "name": "The Flat Until Floating Rule", "body": "Only dialogs get the overlay shadow; everything else is border-defined.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do pair every state color with a Lucide icon and a text label.",
+      "Do keep indigo for actions, focus and current location only.",
+      "Do use tabular numerals for figures and plates.",
+      "Do size driver controls to at least 52px with 1.5px borders and 17px text.",
+      "Do keep light mode only.",
+      "Do use the system stack and Lucide icons at 14, 16, 18 or 20-22px."
+    ],
+    "donts": [
+      "Don't signal status with color alone.",
+      "Don't add a second accent hue or use semantic colors decoratively.",
+      "Don't put shadows on anything but panels, secondary buttons, the submit bar and dialogs.",
+      "Don't hide table columns off-screen on phones; use the card layout.",
+      "Don't load a webfont or add a dark theme."
+    ]
+  }
+}

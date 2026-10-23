@@ -35,7 +35,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <Brand href="/admin" />
         <nav className="nav" aria-label="Navigation principale">
           {NAV.map(({ href, label, Icon, exact }) => (
-            <Link key={href} href={href} aria-current={(exact ? path === href : path.startsWith(href)) ? "page" : undefined}>
+            <Link key={href} href={href} aria-label={label} title={label} aria-current={(exact ? path === href : path.startsWith(href)) ? "page" : undefined}>
               <Icon aria-hidden /><span>{label}</span>
             </Link>
           ))}
