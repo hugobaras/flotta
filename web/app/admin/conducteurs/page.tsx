@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FlotteTabs } from "../../ui";
 
-type Conducteur = { id: number; nom: string; actif: boolean; vehicule_habituel_id: number | null; vehicule_habituel: string | null };
+type Conducteur = { id: number; nom: string; actif: boolean; vehicule_habituel_id: number | null; vehicule_habituel: string | null; email: string | null };
 type Vehicule = { id: number; plaque: string };
 
 type Activite = { id: number; type: string; debut: string; fin: string };
@@ -21,6 +21,7 @@ export default function Conducteurs() {
   const [vehicules, setVehicules] = useState<Vehicule[]>([]);
   const [nom, setNom] = useState("");
   const [habituel, setHabituel] = useState("");
+  const [email, setEmail] = useState("");
   const [pin, setPin] = useState<{ nom: string; pin: string } | null>(null);
   const [erreur, setErreur] = useState("");
   const [choisi, setChoisi] = useState<Conducteur | null>(null);
@@ -44,12 +45,13 @@ export default function Conducteurs() {
   async function creer(e: React.FormEvent) {
     e.preventDefault();
     setErreur("");
-    const r = await fetch("/api/admin/conducteurs", { method: "POST", headers: json, body: JSON.stringify({ nom, vehicule_habituel_id: habituel ? Number(habituel) : null }) });
-    if (!r.ok) return setErreur("Création impossible : le nom doit faire au moins 2 caractères.");
+    const r = await fetch("/api/admin/conducteurs", { method: "POST", headers: json, body: JSON.stringify({ nom, vehicule_habituel_id: habituel ? Number(habituel) : null, email }) });
+    if (!r.ok) return setErreur("Création impossible : nom de 2 caractères au moins, adresse email valide ou vide.");
     const d = await r.json();
     setPin({ nom: d.nom, pin: d.pin });
     setNom("");
     setHabituel("");
+    setEmail("");
     charger();
   }
 
@@ -125,6 +127,7 @@ export default function Conducteurs() {
           <option value="">Pas de véhicule habituel</option>
           {vehicules.map((v) => <option key={v.id} value={v.id}>{v.plaque}</option>)}
         </select>
+        <input className="input" type="email" aria-label="Email du conducteur (pour envoyer sa tournée)" placeholder="Email (facultatif)" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} />
         <button className="btn btn-primary" type="submit">Ajouter le conducteur</button>
       </form>
       {erreur && <div className="notice danger" role="alert">{erreur}</div>}
@@ -134,12 +137,13 @@ export default function Conducteurs() {
       ) : (
         <div className="table-wrap">
           <table className="rack rack-cards">
-            <thead><tr><th>Conducteur</th><th>Véhicule habituel</th><th>État</th><th><span className="sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th>Conducteur</th><th>Véhicule habituel</th><th>Email</th><th>État</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
               {liste.map((c) => (
                 <tr key={c.id} style={{ opacity: c.actif ? 1 : 0.55 }}>
                   <td style={{ fontWeight: 500 }}>{c.nom}</td>
                   <td>{c.vehicule_habituel ?? <span className="muted">–</span>}</td>
+                  <td>{c.email ?? <span className="muted">–</span>}</td>
                   <td>{c.actif ? "Actif" : "Inactif"}</td>
                   <td className="right">
                     <button className="btn btn-ghost btn-sm" onClick={() => ouvrirConduite(c)}>Temps de conduite</button>

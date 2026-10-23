@@ -70,3 +70,14 @@ Squelette du module « contrôle avant départ ». Contexte et étapes : `claude
 ## Temps de conduite (étape 9)
 
 Module isolé `api/app/regulations/` (règlement CE 561/2006), intégré à l'optimisation et au planning : pauses de 45 min insérées dans les tournées, plafonds de conduite et heure de départ par conducteur, historiques déclarés par conducteur, alertes d'infraction après une modification manuelle, temps de conduite restants par conducteur. Détail des règles, des choix et **des points à vérifier avec le texte officiel** : [docs/temps-de-conduite.md](docs/temps-de-conduite.md).
+
+## Plan du chauffeur sur téléphone (étape 10)
+
+- Publication : bouton « Publier aux chauffeurs » dans le planning. Chaque camion qui a des arrêts reçoit un **lien personnel** (`/t/<jeton>`), sans compte ; les liens sont copiables, envoyés par email aux conducteurs qui ont une adresse (si Brevo est configuré), et accessibles depuis le QR code du camion. Republier ne change pas les liens ; publier un autre plan le même jour rend les anciens liens caducs (message explicite). Pas d'envoi par SMS.
+- **Le contrôle avant départ d'abord** : tant que le contrôle du jour n'est pas fait, ou si le camion est bloqué, la tournée est verrouillée côté serveur (aucun arrêt n'est communiqué, aucun statut n'est accepté) et la page renvoie vers le contrôle.
+- Tournée : arrêts dans l'ordre avec heure prévue, client, adresse, contact (téléphone cliquable), consignes, bouton « Naviguer » (lien Google Maps vers l'adresse). Contact et consignes viennent de l'import ou de la fiche commande.
+- Statuts par arrêt : arrivé, livré (nom du destinataire, signature, photo facultatifs) ou impossible (motif obligatoire, photo facultative), avec heure et position. Un arrêt clôturé ne change plus ; l'arrivée et le rejeu d'un envoi sont idempotents (`client_id`).
+- **Hors ligne** : mêmes mécanismes que le contrôle (service worker, file IndexedDB avec photos, envoi au retour du réseau, heure réelle conservée). Les statuts saisis hors ligne s'affichent tout de suite sur le téléphone.
+- Suivi : le planning affiche, par arrêt, le statut en direct, la signature et les photos, un retard (heure prévue dépassée de plus de 15 minutes et arrêt pas atteint) et un résumé (livrées, sur place, impossibles, en retard) ; il se rafraîchit toutes les 30 secondes.
+- Les statuts sont dans un journal séparé du plan : modifier le plan après publication ne les efface pas, et une commande livrée ne redevient jamais « planifiée ».
+- Limites : la position n'est enregistrée qu'à chaque changement de statut (pas de suivi GPS continu) ; le « retard » est celui par rapport à l'heure prévue, sans recalcul d'arrivée en fonction de la position (étape 11).

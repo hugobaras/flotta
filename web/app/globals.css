@@ -305,6 +305,11 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .result .mark { animation: appear 0.5s var(--ease); }
 @keyframes appear { from { opacity: 0; transform: scale(0.8); } }
 
+/* Tournée du chauffeur */
+.arret-tete { display: flex; gap: 12px; align-items: flex-start; }
+.arret-corps { display: grid; gap: 12px; margin-top: 4px; }
+.point.clos { opacity: 0.75; }
+
 /* Parcours par étapes */
 .stack-form { display: grid; gap: 24px; margin-top: 8px; }
 .step-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
