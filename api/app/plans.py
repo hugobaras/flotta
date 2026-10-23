@@ -1,12 +1,11 @@
-"""Construction, calcul et lecture des plans de tournées."""
+"""Construction, calcul, modification et lecture des plans de tournées."""
 import logging
-from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from . import matrices, optimisation as opt, routage
-from .models import Depot, Order, Plan, Route, RouteStop, Vehicle
+from . import matrices, optimisation as opt, planning, routage
+from .models import Depot, Order, Plan, PlanSnapshot, Route, RouteStop, Vehicle
 
 log = logging.getLogger(__name__)
 
@@ -27,46 +26,61 @@ def _progres(db: Session, plan: Plan, pct: int, message: str | None = None):
 
 
 class PlanImpossible(Exception):
-    pass
+    """Plan non calculable : le message est montré tel quel à l'utilisateur."""
+
+
+class ModificationRefusee(Exception):
+    """Modification manuelle refusée (verrou, élément inconnu...)."""
+
+    def __init__(self, message: str, statut: int = 409):
+        super().__init__(message)
+        self.statut = statut
+
+
+# ---------------------------------------------------------------- calcul initial et réoptimisation
 
 
 def executer(db: Session, plan_id: int) -> Plan:
-    """Calcule le plan et enregistre tournées et arrêts. Toute erreur est consignée dans le plan, jamais perdue."""
+    """Calcule le plan. Toute erreur est consignée dans le plan, jamais perdue."""
     plan = db.get(Plan, plan_id)
     if not plan or plan.statut in ("termine", "en_cours"):
         return plan
+    reopt = bool(plan.parametres.get("reoptimiser"))
     try:
-        _executer(db, plan)
+        _reoptimiser(db, plan) if reopt else _executer(db, plan)
     except PlanImpossible as e:
-        db.rollback()
-        plan = db.get(Plan, plan_id)
-        plan.statut, plan.message, plan.progression = "echec", str(e), 100
-        db.commit()
+        _echec(db, plan_id, str(e), reopt)
     except routage.RouteurIndisponible:
-        db.rollback()
-        plan = db.get(Plan, plan_id)
-        plan.statut, plan.progression = "echec", 100
-        plan.message = "Le service de routage poids lourd est indisponible : le plan n'a pas pu être calculé (aucune estimation inventée). Réessayez plus tard."
-        db.commit()
-    except Exception:  # noqa: BLE001 : on garde la trace dans le plan puis on relève pour les journaux
+        _echec(db, plan_id, "Le service de routage poids lourd est indisponible : le plan n'a pas pu être calculé (aucune estimation inventée). Réessayez plus tard.", reopt)
+    except Exception:  # noqa: BLE001 : on garde la trace dans le plan
         log.exception("Plan %s : erreur inattendue", plan_id)
-        db.rollback()
-        plan = db.get(Plan, plan_id)
-        plan.statut, plan.message, plan.progression = "echec", "Erreur inattendue pendant le calcul. L'équipe technique a été prévenue par les journaux.", 100
-        db.commit()
+        _echec(db, plan_id, "Erreur inattendue pendant le calcul. L'équipe technique peut la retrouver dans les journaux.", reopt)
     return db.get(Plan, plan_id)
+
+
+def _echec(db: Session, plan_id: int, message: str, reopt: bool):
+    db.rollback()
+    plan = db.get(Plan, plan_id)
+    plan.message, plan.progression = message, 100
+    plan.statut = "termine" if reopt else "echec"  # une réoptimisation ratée laisse le plan précédent intact
+    plan.parametres = {k: v for k, v in plan.parametres.items() if k != "reoptimiser"}
+    db.commit()
+
+
+def _depot(db: Session, plan: Plan) -> Depot:
+    p = plan.parametres
+    depot = (db.get(Depot, p["depot_id"]) if p.get("depot_id")
+             else db.scalar(select(Depot).where(Depot.company_id == plan.company_id, Depot.par_defaut.is_(True))))
+    if not depot or depot.company_id != plan.company_id or depot.lat is None:
+        raise PlanImpossible("Aucun dépôt localisé : ajoutez un dépôt avec une adresse trouvée avant de planifier.")
+    return depot
 
 
 def _executer(db: Session, plan: Plan):
     p = plan.parametres
     _progres(db, plan, 5, "Préparation des données")
-    depot = (db.get(Depot, p["depot_id"]) if p.get("depot_id")
-             else db.scalar(select(Depot).where(Depot.company_id == plan.company_id, Depot.par_defaut.is_(True))))
-    if not depot or depot.company_id != plan.company_id or depot.lat is None:
-        raise PlanImpossible("Aucun dépôt localisé : ajoutez un dépôt avec une adresse trouvée avant de planifier.")
-
-    non_affectees = []
-    commandes = []
+    depot = _depot(db, plan)
+    non_affectees, commandes = [], []
     for o in db.scalars(select(Order).where(Order.company_id == plan.company_id, Order.date_livraison == plan.jour,
                                             Order.statut.in_(["a_planifier", "planifie"])).order_by(Order.id)):
         if o.lat is None:
@@ -96,53 +110,247 @@ def _executer(db: Session, plan: Plan):
     locations = [(depot.lat, depot.lng)] + [(o.lat, o.lng) for o in commandes]
     profils = {_cle_profil(v): routage.options_camion(v) for v in vehicules}
     mats = matrices.fournisseur(locations, profils)
+    plan.matrices = {"commandes": [0] + [o.id for o in commandes],
+                     "profils": {k: {"vehicle_ids": [v.id for v in vehicules if _cle_profil(v) == k], **m} for k, m in mats.items()}}
 
     _progres(db, plan, 40, "Optimisation des tournées")
-    probleme = opt.Probleme(
+    solution = opt.optimiser(opt.Probleme(
         vehicules=[opt.VehiculeOpt(v.id, _cle_profil(v), v.capacite_kg, v.capacite_m3, v.palettes, v.frigo, v.adr) for v in vehicules],
-        commandes=[opt.CommandeOpt(o.id, o.poids_kg, o.volume_m3, o.palettes, _minutes(o.fenetre_debut), _minutes(o.fenetre_fin),
-                                   o.duree_service_min, o.frigo, o.adr) for o in commandes],
-        matrices={k: m["durations"] for k, m in mats.items()},
+        commandes=[_cmd_opt(o) for o in commandes], matrices={k: m["durations"] for k, m in mats.items()},
         ouverture_min=_minutes(depot.ouverture), fermeture_min=_minutes(depot.fermeture),
-        duree_max_min=p.get("duree_max_min", 600), temps_calcul_s=p.get("temps_max_s", 10))
-    solution = opt.optimiser(probleme)
+        duree_max_min=p.get("duree_max_min", 600), temps_calcul_s=p.get("temps_max_s", 10)))
 
     _progres(db, plan, 90, "Enregistrement du plan")
-    index = {o.id: i + 1 for i, o in enumerate(commandes)}
-    par_id = {o.id: o for o in commandes}
-    par_vehicule = {v.id: v for v in vehicules}
-    km_total = duree_total = charge_totale_kg = 0
-    for r in solution.routes:
-        v = par_vehicule[r.vehicule_id]
-        dist = mats[_cle_profil(v)]["distances"]
-        ligne_prec, km = 0, 0.0
-        for a in r.arrets:
-            km += dist[ligne_prec][index[a.commande_id]]
-            ligne_prec = index[a.commande_id]
-        km += dist[ligne_prec][0]
-        cmds = [par_id[a.commande_id] for a in r.arrets]
-        route = Route(company_id=plan.company_id, plan_id=plan.id, vehicle_id=v.id, depart_min=r.depart_min, retour_min=r.retour_min,
-                      trajet_s=r.trajet_s, distance_km=round(km, 1), charge_kg=sum(o.poids_kg for o in cmds),
-                      charge_palettes=sum(o.palettes for o in cmds), charge_m3=round(sum(o.volume_m3 for o in cmds), 2))
-        db.add(route)
-        db.flush()
-        for n, a in enumerate(r.arrets, start=1):
-            db.add(RouteStop(company_id=plan.company_id, route_id=route.id, ordre=n, order_id=a.commande_id,
-                             arrivee_min=a.arrivee_min, depart_min=a.depart_min, attente_min=a.attente_min))
-            par_id[a.commande_id].statut = "planifie"
-        km_total += km
-        duree_total += r.retour_min - r.depart_min
-        charge_totale_kg += route.charge_kg
-    for commande_id, raison in solution.non_affectees:
-        non_affectees.append({"order_id": commande_id, "raison": raison})
-    capacite_kg = sum(v.capacite_kg for v in vehicules if v.capacite_kg)
-    plan.non_affectees = non_affectees
-    plan.resume = {"km": round(km_total, 1), "duree_min": round(duree_total), "nb_tournees": len(solution.routes),
-                   "nb_commandes": len(commandes), "nb_non_affectees": len(non_affectees), "vehicules_exclus": exclus,
-                   "remplissage_pct": round(100 * charge_totale_kg / capacite_kg) if capacite_kg and solution.routes else None}
-    plan.matrices = {"commandes": [0] + [o.id for o in commandes], "profils": {k: {"vehicle_ids": [v.id for v in vehicules if _cle_profil(v) == k], **m} for k, m in mats.items()}}
+    par_vehicule = {r.vehicule_id: r for r in solution.routes}
+    etat = {"routes": [{"vehicle_id": v.id, "verrouille": False,
+                        "arrets": [{"order_id": a.commande_id, "verrouille": False} for a in par_vehicule[v.id].arrets] if v.id in par_vehicule else []}
+                       for v in vehicules],
+            "non_affectees": non_affectees + [{"order_id": c, "raison": r} for c, r in solution.non_affectees]}
+    plan.resume = {"vehicules_exclus": exclus}
+    db.execute(delete(PlanSnapshot).where(PlanSnapshot.plan_id == plan.id))
+    plan.curseur = -1
+    pousser(db, plan, etat, "Plan optimisé")
     plan.statut, plan.progression, plan.message = "termine", 100, None
     db.commit()
+
+
+def _cmd_opt(o: Order, impose: int | None = None) -> opt.CommandeOpt:
+    return opt.CommandeOpt(o.id, o.poids_kg, o.volume_m3, o.palettes, _minutes(o.fenetre_debut), _minutes(o.fenetre_fin),
+                           o.duree_service_min, o.frigo, o.adr, impose)
+
+
+def _reoptimiser(db: Session, plan: Plan):
+    """Réoptimise sans toucher aux tournées verrouillées ; les arrêts verrouillés restent sur leur camion."""
+    p = plan.parametres
+    _progres(db, plan, 20, "Préparation de la réoptimisation")
+    etat, ctx = charger_etat(db, plan), contexte(db, plan)
+    libres = [r for r in etat["routes"] if not r["verrouille"]]
+    fixes = [r for r in etat["routes"] if r["verrouille"]]
+    if not libres:
+        raise PlanImpossible("Toutes les tournées sont verrouillées : rien à réoptimiser.")
+    impose = {a["order_id"]: r["vehicle_id"] for r in libres for a in r["arrets"] if a["verrouille"]}
+    ids = [a["order_id"] for r in libres for a in r["arrets"]] + [n["order_id"] for n in etat["non_affectees"] if n["order_id"] in ctx.ligne]
+    gardees = [n for n in etat["non_affectees"] if n["order_id"] not in ctx.ligne]
+    commandes = {o.id: o for o in db.scalars(select(Order).where(Order.company_id == plan.company_id, Order.id.in_(ids)))}
+    rows = [0] + [ctx.ligne[i] for i in ids]
+    vehicules = [ctx.vehicules[r["vehicle_id"]] for r in libres]
+    profils = sorted({v.profil for v in vehicules})
+    _progres(db, plan, 40, "Optimisation des tournées")
+    solution = opt.optimiser(opt.Probleme(
+        vehicules=[opt.VehiculeOpt(v.id, v.profil, v.capacite_kg, v.capacite_m3, v.palettes, v.frigo, v.adr) for v in vehicules],
+        commandes=[_cmd_opt(commandes[i], impose.get(i)) for i in ids],
+        matrices={k: [[ctx.durees[k][a][b] for b in rows] for a in rows] for k in profils},
+        ouverture_min=ctx.ouverture_min, fermeture_min=ctx.fermeture_min, duree_max_min=ctx.duree_max_min,
+        temps_calcul_s=p.get("temps_max_s", 10)))
+    _progres(db, plan, 90, "Enregistrement du plan")
+    par_vehicule = {r.vehicule_id: r for r in solution.routes}
+    nouvelles = {r["vehicle_id"]: {"vehicle_id": r["vehicle_id"], "verrouille": False,
+                                   "arrets": [{"order_id": a.commande_id, "verrouille": impose.get(a.commande_id) == r["vehicle_id"]}
+                                              for a in par_vehicule[r["vehicle_id"]].arrets] if r["vehicle_id"] in par_vehicule else []}
+                 for r in libres}
+    etat_nouveau = {"routes": [r if r["verrouille"] else nouvelles[r["vehicle_id"]] for r in etat["routes"]],
+                    "non_affectees": gardees + [{"order_id": c, "raison": raison} for c, raison in solution.non_affectees]}
+    plan.parametres = {k: v for k, v in p.items() if k != "reoptimiser"}
+    pousser(db, plan, etat_nouveau, "Réoptimisation")
+    plan.statut, plan.progression, plan.message = "termine", 100, None
+    db.commit()
+
+
+# ---------------------------------------------------------------- état, historique, recalcul
+
+
+def contexte(db: Session, plan: Plan) -> planning.Contexte:
+    depot = _depot(db, plan)
+    m = plan.matrices or {}
+    ligne = {oid: i for i, oid in enumerate(m.get("commandes", [])) if i > 0}
+    vehicules: dict[int, planning.VehiculeInfo] = {}
+    for cle, prof in m.get("profils", {}).items():
+        for vid in prof["vehicle_ids"]:
+            v = db.get(Vehicle, vid)
+            vehicules[vid] = planning.VehiculeInfo(v.id, v.plaque, cle, v.capacite_kg, v.capacite_m3, v.palettes, v.frigo, v.adr)
+    commandes = {o.id: planning.CommandeInfo(o.id, o.reference, o.poids_kg, o.volume_m3, o.palettes, _minutes(o.fenetre_debut),
+                                             _minutes(o.fenetre_fin), o.duree_service_min, o.frigo, o.adr)
+                 for o in db.scalars(select(Order).where(Order.company_id == plan.company_id, Order.id.in_(list(ligne))))} if ligne else {}
+    return planning.Contexte(_minutes(depot.ouverture), _minutes(depot.fermeture), plan.parametres.get("duree_max_min", 600), commandes, vehicules,
+                             ligne, {k: p["durations"] for k, p in m.get("profils", {}).items()},
+                             {k: p["distances"] for k, p in m.get("profils", {}).items()})
+
+
+def charger_etat(db: Session, plan: Plan) -> dict:
+    routes = []
+    for r in db.scalars(select(Route).where(Route.plan_id == plan.id).order_by(Route.id)):
+        arrets = db.scalars(select(RouteStop).where(RouteStop.route_id == r.id).order_by(RouteStop.ordre))
+        routes.append({"vehicle_id": r.vehicle_id, "verrouille": r.verrouille,
+                       "arrets": [{"order_id": s.order_id, "verrouille": s.verrouille} for s in arrets]})
+    return {"routes": routes, "non_affectees": list(plan.non_affectees)}
+
+
+def _calculer(ctx: planning.Contexte, etat: dict) -> list[planning.RouteCalculee]:
+    return [planning.calculer_route(ctx, r["vehicle_id"], [a["order_id"] for a in r["arrets"]]) for r in etat["routes"]]
+
+
+def _capacite_totale(ctx: planning.Contexte, etat: dict) -> int | None:
+    caps = [ctx.vehicules[r["vehicle_id"]].capacite_kg for r in etat["routes"]]
+    return sum(c for c in caps if c) if all(caps) else None
+
+
+def ecrire_etat(db: Session, plan: Plan, etat: dict):
+    """Réécrit tournées et arrêts depuis l'état, avec heures et indicateurs recalculés."""
+    ctx = contexte(db, plan)
+    calculees = _calculer(ctx, etat)
+    anciens = list(db.scalars(select(Route.id).where(Route.plan_id == plan.id)))
+    if anciens:
+        db.execute(delete(RouteStop).where(RouteStop.route_id.in_(anciens)))
+        db.execute(delete(Route).where(Route.id.in_(anciens)))
+    db.flush()
+    en_route: set[int] = set()
+    for r, c in zip(etat["routes"], calculees):
+        route = Route(company_id=plan.company_id, plan_id=plan.id, vehicle_id=r["vehicle_id"], depart_min=c.depart_min, retour_min=c.retour_min,
+                      trajet_s=c.trajet_s, distance_km=c.distance_km, charge_kg=c.charge_kg, charge_palettes=c.charge_palettes,
+                      charge_m3=c.charge_m3, verrouille=r["verrouille"])
+        db.add(route)
+        db.flush()
+        for n, (a, calc) in enumerate(zip(r["arrets"], c.arrets), start=1):
+            db.add(RouteStop(company_id=plan.company_id, route_id=route.id, ordre=n, order_id=a["order_id"], arrivee_min=calc.arrivee_min,
+                             depart_min=calc.depart_min, attente_min=calc.attente_min, verrouille=a["verrouille"]))
+            en_route.add(a["order_id"])
+    plan.non_affectees = etat["non_affectees"]
+    tous = en_route | {n["order_id"] for n in etat["non_affectees"]}
+    for o in db.scalars(select(Order).where(Order.company_id == plan.company_id, Order.id.in_(tous))):
+        o.statut = "planifie" if o.id in en_route else "a_planifier"
+    resume = dict(plan.resume or {})
+    resume.update(planning.indicateurs(calculees, len(etat["non_affectees"]), _capacite_totale(ctx, etat)))
+    resume["nb_commandes"] = len(tous)
+    plan.resume = resume
+
+
+def pousser(db: Session, plan: Plan, etat: dict, libelle: str):
+    """Enregistre un nouvel état dans l'historique (en effaçant ce qui pouvait être rétabli) puis l'applique."""
+    if plan.curseur >= 0 and not _snapshot(db, plan, plan.curseur):
+        db.add(PlanSnapshot(plan_id=plan.id, seq=plan.curseur, libelle="Plan optimisé", etat=charger_etat(db, plan)))  # plan antérieur à l'historique
+        db.flush()
+    db.execute(delete(PlanSnapshot).where(PlanSnapshot.plan_id == plan.id, PlanSnapshot.seq > plan.curseur))
+    plan.curseur += 1
+    db.add(PlanSnapshot(plan_id=plan.id, seq=plan.curseur, libelle=libelle, etat=etat))
+    ecrire_etat(db, plan, etat)
+    db.flush()
+
+
+def _snapshot(db: Session, plan: Plan, seq: int) -> PlanSnapshot | None:
+    return db.scalar(select(PlanSnapshot).where(PlanSnapshot.plan_id == plan.id, PlanSnapshot.seq == seq))
+
+
+def historique(db: Session, plan: Plan) -> tuple[bool, bool]:
+    return (plan.curseur > 0, _snapshot(db, plan, plan.curseur + 1) is not None)
+
+
+def annuler(db: Session, plan: Plan):
+    prec = _snapshot(db, plan, plan.curseur - 1)
+    if plan.curseur <= 0 or not prec:
+        raise ModificationRefusee("Rien à annuler")
+    plan.curseur -= 1
+    ecrire_etat(db, plan, prec.etat)
+
+
+def retablir(db: Session, plan: Plan):
+    suiv = _snapshot(db, plan, plan.curseur + 1)
+    if not suiv:
+        raise ModificationRefusee("Rien à rétablir")
+    plan.curseur += 1
+    ecrire_etat(db, plan, suiv.etat)
+
+
+def _copie(etat: dict) -> dict:
+    return {"routes": [{**r, "arrets": [dict(a) for a in r["arrets"]]} for r in etat["routes"]], "non_affectees": [dict(n) for n in etat["non_affectees"]]}
+
+
+def deplacer(db: Session, plan: Plan, order_id: int, vehicle_id: int | None, position: int | None):
+    """Déplace un arrêt vers un autre camion (ou dans le même) à la position donnée, ou le rend non affecté."""
+    etat = _copie(charger_etat(db, plan))
+    source = next((r for r in etat["routes"] if any(a["order_id"] == order_id for a in r["arrets"])), None)
+    non_aff = next((n for n in etat["non_affectees"] if n["order_id"] == order_id), None)
+    if not source and not non_aff:
+        raise ModificationRefusee("Commande absente de ce plan", 404)
+    cible = None
+    if vehicle_id is not None:
+        cible = next((r for r in etat["routes"] if r["vehicle_id"] == vehicle_id), None)
+        if not cible:
+            raise ModificationRefusee("Véhicule absent de ce plan", 404)
+    if source:
+        arret = next(a for a in source["arrets"] if a["order_id"] == order_id)
+        if source["verrouille"] or arret["verrouille"]:
+            raise ModificationRefusee("Cet arrêt ou sa tournée est verrouillé : déverrouillez-le d'abord")
+    if cible and cible["verrouille"]:
+        raise ModificationRefusee("La tournée de destination est verrouillée : déverrouillez-la d'abord")
+    if source:
+        source["arrets"] = [a for a in source["arrets"] if a["order_id"] != order_id]
+        arret = {"order_id": order_id, "verrouille": False}
+    else:
+        etat["non_affectees"] = [n for n in etat["non_affectees"] if n["order_id"] != order_id]
+        arret = {"order_id": order_id, "verrouille": False}
+    if cible is None:
+        etat["non_affectees"].append({"order_id": order_id, "raison": "Retirée du plan à la main"})
+    else:
+        pos = len(cible["arrets"]) if position is None else max(0, min(position, len(cible["arrets"])))
+        cible["arrets"].insert(pos, arret)
+    pousser(db, plan, etat, "Déplacement d'un arrêt")
+
+
+def verrouiller(db: Session, plan: Plan, vehicle_id: int | None, order_id: int | None, verrouille: bool):
+    etat = _copie(charger_etat(db, plan))
+    if order_id is not None:
+        trouve = next((a for r in etat["routes"] for a in r["arrets"] if a["order_id"] == order_id), None)
+        if not trouve:
+            raise ModificationRefusee("Arrêt absent de ce plan", 404)
+        trouve["verrouille"] = verrouille
+    elif vehicle_id is not None:
+        route = next((r for r in etat["routes"] if r["vehicle_id"] == vehicle_id), None)
+        if not route:
+            raise ModificationRefusee("Véhicule absent de ce plan", 404)
+        route["verrouille"] = verrouille
+    else:
+        raise ModificationRefusee("Indiquez un arrêt ou un véhicule", 422)
+    pousser(db, plan, etat, "Verrouillage" if verrouille else "Déverrouillage")
+
+
+def creer_version(db: Session, plan: Plan, nom: str) -> Plan:
+    copie = Plan(company_id=plan.company_id, jour=plan.jour, statut="termine", progression=100, parametres=dict(plan.parametres), resume=dict(plan.resume or {}),
+                 non_affectees=list(plan.non_affectees), matrices=plan.matrices, nom=nom.strip(), parent_id=plan.id, curseur=-1)
+    db.add(copie)
+    db.flush()
+    pousser(db, copie, charger_etat(db, plan), f"Version « {nom.strip()} »")
+    return copie
+
+
+def lancer_reoptimisation(db: Session, plan: Plan):
+    if plan.statut != "termine":
+        raise ModificationRefusee("Le plan n'est pas terminé")
+    plan.statut, plan.progression, plan.message = "en_attente", 0, None
+    plan.parametres = {**plan.parametres, "reoptimiser": True}
+    db.commit()
+
+
+# ---------------------------------------------------------------- lecture
 
 
 def detail(db: Session, plan: Plan) -> dict:
@@ -152,7 +360,8 @@ def detail(db: Session, plan: Plan) -> dict:
     commandes = {o.id: o for o in db.scalars(select(Order).where(Order.company_id == plan.company_id, Order.id.in_(ids)))} if ids else {}
 
     def cmd(o: Order | None):
-        return {"reference": o.reference, "client": o.client, "adresse": o.adresse, "lat": o.lat, "lng": o.lng} if o else {}
+        return {"reference": o.reference, "client": o.client, "adresse": o.adresse, "lat": o.lat, "lng": o.lng, "poids_kg": o.poids_kg,
+                "palettes": o.palettes, "fenetre_debut": o.fenetre_debut, "fenetre_fin": o.fenetre_fin, "duree_service_min": o.duree_service_min} if o else {}
 
     sortie_routes = []
     for r in routes:
@@ -163,6 +372,19 @@ def detail(db: Session, plan: Plan) -> dict:
             "charge_m3": r.charge_m3, "verrouille": r.verrouille,
             "arrets": [{"id": s.id, "ordre": s.ordre, "order_id": s.order_id, "arrivee_min": s.arrivee_min, "depart_min": s.depart_min,
                         "attente_min": s.attente_min, "verrouille": s.verrouille, **cmd(commandes.get(s.order_id))} for s in arrets]})
-    return {"id": plan.id, "jour": plan.jour, "statut": plan.statut, "progression": plan.progression, "message": plan.message,
-            "parametres": plan.parametres, "resume": plan.resume, "created_at": plan.created_at, "routes": sortie_routes,
-            "non_affectees": [{**n, **cmd(commandes.get(n["order_id"]))} for n in plan.non_affectees]}
+    out = {"id": plan.id, "jour": plan.jour, "statut": plan.statut, "progression": plan.progression, "message": plan.message, "nom": plan.nom,
+           "parametres": plan.parametres, "resume": plan.resume, "created_at": plan.created_at, "routes": sortie_routes,
+           "non_affectees": [{**n, **cmd(commandes.get(n["order_id"]))} for n in plan.non_affectees],
+           "alertes": [], "reference": None, "peut_annuler": False, "peut_retablir": False, "versions": []}
+    if plan.statut == "termine" and plan.matrices:
+        ctx = contexte(db, plan)
+        etat = charger_etat(db, plan)
+        out["alertes"] = [a.__dict__ for r in _calculer(ctx, etat) for a in r.alertes]
+        origine = _snapshot(db, plan, 0)
+        if origine:
+            ref = planning.indicateurs(_calculer(ctx, origine.etat), len(origine.etat["non_affectees"]), _capacite_totale(ctx, origine.etat))
+            out["reference"] = ref
+        out["peut_annuler"], out["peut_retablir"] = historique(db, plan)
+    autres = db.scalars(select(Plan).where(Plan.company_id == plan.company_id, Plan.jour == plan.jour, Plan.statut == "termine").order_by(Plan.id))
+    out["versions"] = [{"id": p.id, "nom": p.nom, "created_at": p.created_at} for p in autres]
+    return out
