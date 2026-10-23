@@ -30,6 +30,9 @@ CHAMPS = [
     ("frigo", "Frigo", False, ["frigo", "frigorifique", "temperature_dirigee"]),
     ("adr", "ADR", False, ["adr", "matiere_dangereuse"]),
     ("hayon", "Hayon", False, ["hayon"]),
+    ("contact_nom", "Contact sur place", False, ["contact", "contact_nom", "interlocuteur"]),
+    ("contact_telephone", "Téléphone du contact", False, ["telephone", "tel", "contact_telephone", "mobile"]),
+    ("consignes", "Consignes de livraison", False, ["consignes", "instructions", "commentaire", "remarques"]),
     ("date_livraison", "Date de livraison", False, ["date", "date_livraison", "livraison"]),
 ]
 CLES = [c[0] for c in CHAMPS]
@@ -74,6 +77,9 @@ class CommandeIn(BaseModel):
     frigo: bool = False
     adr: bool = False
     hayon: bool = False
+    contact_nom: str = Field(default="", max_length=100)
+    contact_telephone: str = Field(default="", max_length=30)
+    consignes: str = Field(default="", max_length=500)
     date_livraison: date
 
     @model_validator(mode="after")
@@ -88,6 +94,7 @@ def sortie(o: Order) -> dict:
             "geo_statut": o.geo_statut, "geo_score": o.geo_score, "poids_kg": o.poids_kg, "volume_m3": o.volume_m3,
             "palettes": o.palettes, "fenetre_debut": o.fenetre_debut, "fenetre_fin": o.fenetre_fin,
             "duree_service_min": o.duree_service_min, "frigo": o.frigo, "adr": o.adr, "hayon": o.hayon,
+            "contact_nom": o.contact_nom, "contact_telephone": o.contact_telephone, "consignes": o.consignes,
             "date_livraison": o.date_livraison, "statut": o.statut}
 
 
@@ -143,7 +150,10 @@ class CommandePatch(BaseModel):
     frigo: bool | None = None
     adr: bool | None = None
     hayon: bool | None = None
-    statut: str | None = Field(default=None, pattern=r"^(a_planifier|planifie|livre|annule)$")
+    contact_nom: str | None = Field(default=None, max_length=100)
+    contact_telephone: str | None = Field(default=None, max_length=30)
+    consignes: str | None = Field(default=None, max_length=500)
+    statut: str | None = Field(default=None, pattern=r"^(a_planifier|planifie|livre|echec|annule)$")
     lat: float | None = Field(default=None, ge=-90, le=90)
     lng: float | None = Field(default=None, ge=-180, le=180)
 
@@ -271,6 +281,9 @@ def _analyser(entetes, lignes, mapping, date_defaut: date | None, user: User, db
         try:
             v["reference"] = brut.get("reference", "")
             v["client"] = brut.get("client", "")
+            for cle in ("contact_nom", "contact_telephone", "consignes"):
+                if brut.get(cle):
+                    v[cle] = brut[cle]
             adresse = " ".join(x for x in (brut.get("adresse"), brut.get("code_postal"), brut.get("ville")) if x)
             v["adresse"] = adresse
             for cle in ("poids_kg", "palettes", "duree_service_min"):

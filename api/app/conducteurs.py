@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -21,7 +22,7 @@ def maintenant() -> datetime:
 
 def _sortie(d: Driver, plaque: str | None) -> dict:
     return {"id": d.id, "nom": d.nom, "actif": d.actif, "vehicule_habituel_id": d.vehicule_habituel_id,
-            "vehicule_habituel": plaque}
+            "vehicule_habituel": plaque, "email": d.email}
 
 
 def _plaque(db: Session, vehicle_id: int | None) -> str | None:
@@ -57,16 +58,34 @@ def liste(user: User = Depends(current_user), db: Session = Depends(get_db)):
     return [_sortie(d, plaque) for d, plaque in rows]
 
 
+EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _email(v: str | None) -> str | None:
+    v = (v or "").strip().lower()
+    if not v:
+        return None
+    if not EMAIL.match(v) or len(v) > 254:
+        raise ValueError("Adresse email invalide")
+    return v
+
+
 class ConducteurIn(BaseModel):
     nom: str = Field(min_length=2, max_length=100)
     vehicule_habituel_id: int | None = None
+    email: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def email_valide(cls, v):
+        return _email(v)
 
 
 @router.post("", status_code=201)
 def creer(body: ConducteurIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     _verifier_vehicule(db, user, body.vehicule_habituel_id)
     pin, h = _pin_libre(db, user.company_id)
-    d = Driver(company_id=user.company_id, nom=body.nom.strip(), pin_hash=h, vehicule_habituel_id=body.vehicule_habituel_id)
+    d = Driver(company_id=user.company_id, nom=body.nom.strip(), pin_hash=h, vehicule_habituel_id=body.vehicule_habituel_id, email=body.email)
     db.add(d)
     db.commit()
     # Le PIN n'est montré qu'une fois : en base il n'existe que sous forme de HMAC.
@@ -78,6 +97,12 @@ class ConducteurPatch(BaseModel):
     vehicule_habituel_id: int | None = None
     actif: bool | None = None
     reinitialiser_pin: bool = False
+    email: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def email_valide(cls, v):
+        return _email(v)
 
 
 @router.patch("/{driver_id}")
@@ -91,6 +116,8 @@ def modifier(driver_id: int, body: ConducteurPatch, user: User = Depends(current
         d.nom = body.nom.strip()
     if body.actif is not None:
         d.actif = body.actif
+    if "email" in champs:
+        d.email = body.email
     pin = None
     if body.reinitialiser_pin:
         pin, d.pin_hash = _pin_libre(db, user.company_id)
