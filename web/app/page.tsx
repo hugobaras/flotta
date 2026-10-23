@@ -21,9 +21,9 @@ export default function Accueil() {
           </div>
         </section>
 
-        <section className="bloc" id="controle">
-          <div className="bloc-titre">
-            <p className="bloc-sur">Contrôle avant départ</p>
+        <section className="rubrique" id="controle">
+          <div className="rubrique-titre">
+            <p className="rubrique-sur">Contrôle avant départ</p>
             <h2>Le chauffeur scanne, répond, repart. Vous savez quels camions peuvent partir.</h2>
           </div>
           <ol className="pas">
@@ -34,9 +34,9 @@ export default function Accueil() {
           </ol>
         </section>
 
-        <section className="bloc" id="tournees">
-          <div className="bloc-titre">
-            <p className="bloc-sur">Tournées poids lourd</p>
+        <section className="rubrique" id="tournees">
+          <div className="rubrique-titre">
+            <p className="rubrique-sur">Tournées poids lourd</p>
             <h2>Importez vos commandes, obtenez des tournées réalistes pour vos camions.</h2>
           </div>
           <ol className="pas">
@@ -48,9 +48,9 @@ export default function Accueil() {
           </ol>
         </section>
 
-        <section className="bloc" id="tarifs">
-          <div className="bloc-titre">
-            <p className="bloc-sur">Tarifs</p>
+        <section className="rubrique" id="tarifs">
+          <div className="rubrique-titre">
+            <p className="rubrique-sur">Tarifs</p>
             <h2>Un prix par camion, sans engagement de modules.</h2>
           </div>
           <GrilleOffres action={<div className="hero-actions" style={{ marginTop: 24 }}><a className="btn btn-primary" href="/connexion">Espace exploitant</a></div>} />
