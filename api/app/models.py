@@ -211,3 +211,49 @@ class ColumnMapping(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), unique=True)
     mapping: Mapped[dict] = mapped_column(JSON)
+
+
+class Plan(Base):
+    """Plan de tournées d'une journée, calculé en tâche de fond."""
+    __tablename__ = "plans"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    jour: Mapped[date] = mapped_column(Date, index=True)
+    # en_attente | en_cours | termine | echec
+    statut: Mapped[str] = mapped_column(String(20), default="en_attente", server_default="en_attente")
+    progression: Mapped[int] = mapped_column(default=0, server_default="0")
+    message: Mapped[str | None] = mapped_column(Text)
+    parametres: Mapped[dict] = mapped_column(JSON, default=dict)
+    resume: Mapped[dict | None] = mapped_column(JSON)  # kilomètres, durée, taux de remplissage, véhicules exclus...
+    non_affectees: Mapped[list] = mapped_column(JSON, default=list)  # [{order_id, raison}]
+    matrices: Mapped[dict | None] = mapped_column(JSON)  # conservées pour recalculer sans rappeler le routage
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Route(Base):
+    __tablename__ = "routes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), index=True)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"))
+    depart_min: Mapped[float] = mapped_column(Float)
+    retour_min: Mapped[float] = mapped_column(Float)
+    trajet_s: Mapped[int]
+    distance_km: Mapped[float] = mapped_column(Float, default=0)
+    charge_kg: Mapped[int] = mapped_column(default=0)
+    charge_palettes: Mapped[int] = mapped_column(default=0)
+    charge_m3: Mapped[float] = mapped_column(Float, default=0)
+    verrouille: Mapped[bool] = mapped_column(default=False, server_default=false())
+
+
+class RouteStop(Base):
+    __tablename__ = "route_stops"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    route_id: Mapped[int] = mapped_column(ForeignKey("routes.id"), index=True)
+    ordre: Mapped[int]
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    arrivee_min: Mapped[float] = mapped_column(Float)
+    depart_min: Mapped[float] = mapped_column(Float)
+    attente_min: Mapped[float] = mapped_column(Float, default=0)
+    verrouille: Mapped[bool] = mapped_column(default=False, server_default=false())

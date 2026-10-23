@@ -10,6 +10,7 @@ const NAV = [
   { href: "/admin/controles", label: "Contrôles" },
   { href: "/admin/flotte", label: "Flotte", aussi: "/admin/conducteurs" },
   { href: "/admin/commandes", label: "Commandes", aussi: "/admin/itineraires" },
+  { href: "/admin/planning", label: "Planning" },
   { href: "/admin/parametres", label: "Réglages", aussi: "/admin/checklists" },
 ];
 
