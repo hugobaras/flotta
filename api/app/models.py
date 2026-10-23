@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, false
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -17,6 +17,9 @@ class Company(Base):
     heure_rappel: Mapped[str] = mapped_column(String(5), default="08:00", server_default="08:00")  # HH:MM, heure de Paris
     # RGPD : durée de conservation des contrôles, photos et positions (3 ans par défaut).
     retention_jours: Mapped[int] = mapped_column(default=1095, server_default="1095")
+    alert_emails: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")  # destinataires des alertes
+    logo_fichier: Mapped[str | None] = mapped_column(String(100))
+    rappel_envoye_le: Mapped[date | None] = mapped_column(Date)  # un seul rappel par jour et par société
 
 
 class User(Base):
@@ -97,4 +100,17 @@ class Unblock(Base):
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     commentaire: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Alert(Base):
+    """Suivi de l'envoi d'un email d'alerte (défaut critique)."""
+    __tablename__ = "alerts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    check_id: Mapped[int] = mapped_column(ForeignKey("checks.id"), index=True)
+    # en_attente | envoye | echec | non_configure | sans_destinataire
+    statut: Mapped[str] = mapped_column(String(20), default="en_attente")
+    tentatives: Mapped[int] = mapped_column(default=0)
+    erreur: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
