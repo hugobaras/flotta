@@ -1,0 +1,5 @@
+﻿reference;client;adresse;code_postal;ville;palettes;poids_kg;volume_m3;fenetre_debut;fenetre_fin;duree_service;frigo;contact;telephone;consignes;date_livraison
+;Supermarché Arras;1 Place des Héros;62000;Arras;6;2700;9.6;05:00;11:00;30;oui;Réception;06 12 34 56 71;Quai de livraison à l'arrière;26/10/2026
+TEST-002;Restaurant Arras;10 Rue Gambetta;62000;Arras;1;450;1.6;25:99;12:00;15;oui;Réception;06 12 34 56 72;Sonner à l'entrée de service;26/10/2026
+TEST-003;Supermarché Lens;xyzzy introuvable;00000;Nullepart;8;3600;12.8;05:00;11:00;30;oui;Réception;06 12 34 56 73;Quai de livraison à l'arrière;26/10/2026
+TEST-004;Cantine scolaire Liévin;14 Rue Jean Jaurès;62800;Liévin;2;900;3.2;07:00;11:30;15;oui;Réception;06 12 34 56 74;Sonner à l'entrée de service;26/10/2026

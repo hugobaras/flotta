@@ -1,0 +1,31 @@
+﻿reference;client;adresse;code_postal;ville;palettes;poids_kg;volume_m3;fenetre_debut;fenetre_fin;duree_service;frigo;contact;telephone;consignes;date_livraison
+TEST-001;Supermarché Arras;1 Place des Héros;62000;Arras;6;2700;9.6;05:00;11:00;30;oui;Réception;06 12 34 56 71;Quai de livraison à l'arrière;26/10/2026
+TEST-002;Restaurant Arras;10 Rue Gambetta;62000;Arras;1;450;1.6;08:00;12:00;15;oui;Réception;06 12 34 56 72;Sonner à l'entrée de service;26/10/2026
+TEST-003;Supermarché Lens;12 Rue de Paris;62300;Lens;8;3600;12.8;05:00;11:00;30;oui;Réception;06 12 34 56 73;Quai de livraison à l'arrière;26/10/2026
+TEST-004;Cantine scolaire Liévin;14 Rue Jean Jaurès;62800;Liévin;2;900;3.2;07:00;11:30;15;oui;Réception;06 12 34 56 74;Sonner à l'entrée de service;26/10/2026
+TEST-005;Restaurant Béthune;5 Grand'Place;62400;Béthune;1;450;1.6;08:00;12:00;15;oui;Réception;06 12 34 56 75;Sonner à l'entrée de service;26/10/2026
+TEST-006;Supermarché Douai;8 Place d'Armes;59500;Douai;7;3150;11.2;05:00;11:00;30;oui;Réception;06 12 34 56 76;Quai de livraison à l'arrière;26/10/2026
+TEST-007;Hôpital Lille;15 Rue Faidherbe;59000;Lille;3;1350;4.8;06:00;14:00;15;oui;Réception;06 12 34 56 77;Sonner à l'entrée de service;26/10/2026
+TEST-008;Restaurant Lille;20 Rue Nationale;59800;Lille;2;900;3.2;08:00;12:00;15;oui;Réception;06 12 34 56 78;Sonner à l'entrée de service;26/10/2026
+TEST-009;Grossiste Lille;25 Boulevard de la Liberté;59800;Lille;12;5400;19.2;;;30;oui;Réception;06 12 34 56 79;Quai de livraison à l'arrière;26/10/2026
+TEST-010;Supermarché Roubaix;3 Grand Place;59100;Roubaix;5;2250;8.0;05:00;11:00;15;oui;Réception;06 12 34 56 70;Quai de livraison à l'arrière;26/10/2026
+TEST-011;Cantine scolaire Tourcoing;10 Rue de Tournai;59200;Tourcoing;2;900;3.2;07:00;11:30;15;oui;Réception;06 12 34 56 71;Sonner à l'entrée de service;26/10/2026
+TEST-012;Restaurant Armentières;11 Rue Sadi Carnot;59280;Armentières;1;450;1.6;08:00;12:00;15;oui;Réception;06 12 34 56 72;Sonner à l'entrée de service;26/10/2026
+TEST-013;Supermarché Hazebrouck;6 Place du Général de Gaulle;59190;Hazebrouck;6;2700;9.6;05:00;11:00;30;oui;Réception;06 12 34 56 73;Quai de livraison à l'arrière;26/10/2026
+TEST-014;Hôpital Valenciennes;6 Place d'Armes;59300;Valenciennes;4;1800;6.4;06:00;14:00;15;oui;Réception;06 12 34 56 74;Sonner à l'entrée de service;26/10/2026
+TEST-015;Restaurant Denain;5 Rue de Villars;59220;Denain;1;450;1.6;08:00;12:00;15;oui;Réception;06 12 34 56 75;Sonner à l'entrée de service;26/10/2026
+TEST-016;Supermarché Cambrai;4 Place Aristide Briand;59400;Cambrai;7;3150;11.2;05:00;11:00;30;oui;Réception;06 12 34 56 76;Quai de livraison à l'arrière;26/10/2026
+TEST-017;Grossiste Maubeuge;3 Place Vauban;59600;Maubeuge;10;4500;16.0;;;30;oui;Réception;06 12 34 56 77;Quai de livraison à l'arrière;26/10/2026
+TEST-018;Supermarché Dunkerque;2 Place Jean Bart;59140;Dunkerque;9;4050;14.4;05:00;11:00;30;oui;Réception;06 12 34 56 78;Quai de livraison à l'arrière;26/10/2026
+TEST-019;Restaurant Dunkerque;30 Rue de l'Amiral Ronarc'h;59140;Dunkerque;2;900;3.2;08:00;12:00;15;oui;Réception;06 12 34 56 79;Sonner à l'entrée de service;26/10/2026
+TEST-020;Hôpital Calais;7 Place d'Armes;62100;Calais;3;1350;4.8;06:00;14:00;15;oui;Réception;06 12 34 56 70;Sonner à l'entrée de service;26/10/2026
+TEST-021;Supermarché Calais;15 Boulevard Jacquard;62100;Calais;8;3600;12.8;05:00;11:00;30;oui;Réception;06 12 34 56 71;Quai de livraison à l'arrière;26/10/2026
+TEST-022;Restaurant Boulogne-sur-Mer;9 Rue Victor Hugo;62200;Boulogne-sur-Mer;1;450;1.6;08:00;12:00;15;oui;Réception;06 12 34 56 72;Sonner à l'entrée de service;26/10/2026
+TEST-023;Cantine scolaire Saint-Omer;5 Place Foch;62500;Saint-Omer;2;900;3.2;07:00;11:30;15;oui;Réception;06 12 34 56 73;Sonner à l'entrée de service;26/10/2026
+TEST-024;Supermarché Hénin-Beaumont;2 Place Jean Jaurès;62110;Hénin-Beaumont;6;2700;9.6;05:00;11:00;30;oui;Réception;06 12 34 56 74;Quai de livraison à l'arrière;26/10/2026
+TEST-025;Restaurant Bruay-la-Buissière;9 Rue Pasteur;62700;Bruay-la-Buissière;2;900;3.2;08:00;12:00;15;oui;Réception;06 12 34 56 75;Sonner à l'entrée de service;26/10/2026
+TEST-026;Grossiste Arras;28 Boulevard Carnot;62000;Arras;11;4950;17.6;;;30;oui;Réception;06 12 34 56 76;Quai de livraison à l'arrière;26/10/2026
+TEST-027;Restaurant Douai;20 Rue de la Madeleine;59500;Douai;1;450;1.6;08:00;12:00;15;oui;Réception;06 12 34 56 77;Sonner à l'entrée de service;26/10/2026
+TEST-028;Cantine scolaire Lens;4 Rue Jean Letienne;62300;Lens;3;1350;4.8;07:00;11:30;15;oui;Réception;06 12 34 56 78;Sonner à l'entrée de service;26/10/2026
+TEST-029;Supermarché Lille;12 Rue Solférino;59000;Lille;5;2250;8.0;05:00;11:00;15;oui;Réception;06 12 34 56 79;Quai de livraison à l'arrière;26/10/2026
+TEST-030;Hôpital Tourcoing;48 Rue de la Latte;59200;Tourcoing;3;1350;4.8;06:00;14:00;15;oui;Réception;06 12 34 56 70;Sonner à l'entrée de service;26/10/2026
