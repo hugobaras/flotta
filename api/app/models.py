@@ -347,6 +347,8 @@ class RouteStop(Base):
     depart_min: Mapped[float] = mapped_column(Float)
     attente_min: Mapped[float] = mapped_column(Float, default=0)
     verrouille: Mapped[bool] = mapped_column(default=False, server_default=false())
+    # Rotation du camion (1, 2, 3) : entre deux rotations il revient au dépôt et recharge.
+    rotation: Mapped[int] = mapped_column(default=1, server_default="1")
 
 
 class PlanSnapshot(Base):

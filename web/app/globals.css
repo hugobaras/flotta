@@ -418,6 +418,9 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .demarrage { list-style: none; margin: 24px 0 0; padding: 0; max-width: 760px; }
 .demarrage li { display: flex; gap: 16px; align-items: center; padding: 16px 0; border-top: 1px solid var(--line); }
 .demarrage .rond { display: inline-block; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: 50%; vertical-align: middle; }
+.rotation-ligne { display: flex; gap: 14px; padding: 10px 0; border-top: 1px solid var(--line-strong); background: var(--bg); font-size: 14px; }
+.rotation-ligne .heure { font-variant-numeric: tabular-nums; min-width: 56px; font-weight: 600; }
+.frise .bloc.depot { background: repeating-linear-gradient(135deg, var(--line-strong) 0 2px, transparent 2px 5px); border: 1px solid var(--line-strong); }
 .info { display: inline-block; position: relative; margin-left: 6px; vertical-align: middle; }
 .info summary { list-style: none; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--ink-3); font-size: 12px; display: grid; place-items: center; }
 .info summary::-webkit-details-marker { display: none; }

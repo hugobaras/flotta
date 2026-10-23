@@ -31,10 +31,15 @@ class Vivant:
     depuis_min: float  # heure à laquelle le camion repart de cette position
     chrono: object
     figes: set[int] = field(default_factory=set)  # arrêts verrouillés
+    rotations: dict[int, int] = field(default_factory=dict)  # rotation de chaque arrêt de la tournée
+    rotation_depuis: int = 1  # rotation en cours à la position actuelle
 
     def copie(self) -> "Vivant":
         return Vivant(self.vehicule_id, self.verrouille, self.conducteur_id, list(self.complet), list(self.restants), self.depuis_ligne, self.depuis_min,
-                      self.chrono, set(self.figes))
+                      self.chrono, set(self.figes), dict(self.rotations), self.rotation_depuis)
+
+    def rotations_restantes(self) -> list[int]:
+        return [self.rotations.get(i, 1) for i in self.restants]
 
     def retirer(self, order_id: int):
         self.restants.remove(order_id)
@@ -43,6 +48,9 @@ class Vivant:
     def inserer(self, order_id: int, pos: int) -> int:
         """Insère dans les arrêts restants ; renvoie la position correspondante dans la tournée complète."""
         idx = self.complet.index(self.restants[pos]) if pos < len(self.restants) else len(self.complet)
+        # Même règle que l'application réelle (plans.deplacer_etat) : l'arrêt prend la rotation de celui qui le précède dans la tournée.
+        voisin = self.complet[idx - 1] if idx else (self.complet[0] if self.complet else None)
+        self.rotations[order_id] = self.rotations.get(voisin, self.rotation_depuis) if voisin is not None else self.rotation_depuis
         self.complet.insert(idx, order_id)
         self.restants.insert(pos, order_id)
         return idx
@@ -54,7 +62,8 @@ def construire(db: Session, plan: Plan, ctx: planning.Contexte, etat: dict, main
     vivants = []
     for r in etat["routes"]:
         ids = [a["order_id"] for a in r["arrets"]]
-        prevu = planning.calculer_route(ctx, r["vehicle_id"], ids, r.get("conducteur_id"))
+        rots = {a["order_id"]: a.get("rotation", 1) for a in r["arrets"]}
+        prevu = planning.calculer_route(ctx, r["vehicle_id"], ids, r.get("conducteur_id"), [rots[i] for i in ids])
         statut = lambda i: (suivi.get(i) or {}).get("statut")  # noqa: E731
         faits = [i for i in ids if statut(i) in FINAUX]
         sur_place = next((i for i in ids if statut(i) == "arrive"), None)
@@ -68,8 +77,10 @@ def construire(db: Session, plan: Plan, ctx: planning.Contexte, etat: dict, main
             depuis = max(now_min, minutes_du_jour(suivi[faits[-1]]["termine_le"], plan.jour))
         else:
             ligne, depuis = 0, max(now_min, prevu.depart_min)  # pas encore parti : il part au plus tôt à l'heure prévue
+        position = sur_place if sur_place is not None else (faits[-1] if faits else None)
         vivants.append(Vivant(r["vehicle_id"], r["verrouille"], r.get("conducteur_id"), ids, restants, ligne, depuis,
-                              planning.chrono_a(prevu.activites, depuis), {a["order_id"] for a in r["arrets"] if a["verrouille"]}))
+                              planning.chrono_a(prevu.activites, depuis), {a["order_id"] for a in r["arrets"] if a["verrouille"]}, rots,
+                              rots[position] if position is not None else (rots[ids[0]] if ids else 1)))
     return vivants
 
 
@@ -116,7 +127,8 @@ class Evaluation:
 
 
 def evaluer(ctx: planning.Contexte, vivants: list[Vivant], ajust=None, reportes: int = 0) -> Evaluation:
-    sims = {v.vehicule_id: planning.simuler_depuis(ctx, v.vehicule_id, v.restants, v.depuis_ligne, v.depuis_min, v.chrono, (ajust or {}).get(v.vehicule_id))
+    sims = {v.vehicule_id: planning.simuler_depuis(ctx, v.vehicule_id, v.restants, v.depuis_ligne, v.depuis_min, v.chrono, (ajust or {}).get(v.vehicule_id),
+                                                   v.rotations_restantes(), v.rotation_depuis)
             for v in vivants}
     retards = [(vid, cid, m) for vid, s in sims.items() for cid, m in s.retards]
     return Evaluation(sims, len(retards), sum(m for _, _, m in retards), sum(s.distance_km for s in sims.values()),
