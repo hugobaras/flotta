@@ -5,6 +5,9 @@ import Carte, { Point, Trace } from "../../lib/Carte";
 import { Cadenas, Plaque } from "../../ui";
 
 type Arret = { id: number; ordre: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; verrouille: boolean; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; fenetre_fin: string | null; livraison: { statut: "arrive" | "livre" | "impossible" | null; arrive_le: string | null; termine_le: string | null; motif: string | null; nom_destinataire: string | null; a_signature: boolean; photos: number[] } | null; retard_min: number | null };
+type Retard = { vehicle_id: number; plaque: string; order_id: number; reference: string; retard_min: number; message: string };
+type Impact = { nb_retards: number; retard_total_min: number; km: number; retour_max_min: number; reportes: number };
+type Proposition = { index: number; titre: string; description: string; actions: { order_id: number; vehicle_id: number | null; position: number | null }[]; impact: { avant: Impact; apres: Impact } };
 type Lien = { vehicle_id: number; plaque: string; url: string; conducteur: string | null; email: string | null };
 type Tournee = { id: number; vehicle_id: number; plaque: string; depart_min: number; retour_min: number; distance_km: number; charge_kg: number; charge_palettes: number; verrouille: boolean; arrets: Arret[]; conducteur_id: number | null; conduite_min: number; pauses: [number, number][]; plafond_conduite_min: number | null; conduite_restante_min: number | null };
 type ConducteurInfo = { id: number; nom: string; vehicle_id: number | null; conduite_jour_min: number; conduite_jour_normale_min: number; conduite_semaine_min: number; extensions_restantes: number; debut_possible_min: number };
@@ -37,6 +40,11 @@ export default function Planning() {
   const [tempsMax, setTempsMax] = useState(10);
   const [glisse, setGlisse] = useState<number | null>(null);
   const [sur, setSur] = useState<string | null>(null);
+  const [retardsPrevus, setRetardsPrevus] = useState<Retard[]>([]);
+  const [trafic, setTrafic] = useState<{ actif: boolean; fournisseur: string | null; indisponible: boolean } | null>(null);
+  const [propositions, setPropositions] = useState<{ demande: { type: string; order_id?: number; vehicle_id?: number }; titre: string; liste: Proposition[] } | null>(null);
+  const [urgentes, setUrgentes] = useState<{ id: number; reference: string; adresse: string }[]>([]);
+  const dialogueProp = useRef<HTMLDialogElement>(null);
   const [liens, setLiens] = useState<Lien[] | null>(null);
   const [copie, setCopie] = useState("");
   const dialogueLiens = useRef<HTMLDialogElement>(null);
@@ -84,6 +92,38 @@ export default function Planning() {
     lire(plan!.id);
   }
 
+  const chargerSuivi = useCallback(async (id: number) => {
+    const r = await fetch(`/api/admin/plans/${id}/suivi`);
+    if (!r.ok) return;
+    const j = await r.json();
+    setRetardsPrevus(j.retards);
+    setTrafic(j.trafic);
+  }, []);
+
+  async function proposer(demande: { type: string; order_id?: number; vehicle_id?: number }, titre: string) {
+    setErreur("");
+    const r = await fetch(`/api/admin/plans/${plan!.id}/propositions`, { method: "POST", headers: json, body: JSON.stringify(demande) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setErreur(typeof j.detail === "string" ? j.detail : "Impossible de calculer des propositions.");
+    setPropositions({ demande, titre, liste: j.propositions });
+    dialogueProp.current?.showModal();
+  }
+
+  async function appliquerProposition(p: Proposition) {
+    const r = await fetch(`/api/admin/plans/${plan!.id}/propositions/appliquer`, { method: "POST", headers: json, body: JSON.stringify({ ...propositions!.demande, actions: p.actions }) });
+    const j = await r.json().catch(() => ({}));
+    dialogueProp.current?.close();
+    if (!r.ok) return setErreur(typeof j.detail === "string" ? j.detail : "Application impossible.");
+    setPlan(j);
+    chargerSuivi(plan!.id);
+  }
+
+  async function ouvrirUrgence() {
+    const r = await fetch(`/api/admin/commandes?date=${jour}`);
+    if (r.ok) setUrgentes((await r.json()).filter((c: { statut: string; lat: number | null }) => c.statut === "a_planifier" && c.lat !== null));
+    document.getElementById("urgence")?.scrollIntoView({ block: "center" });
+  }
+
   async function copier(url: string) {
     try { await navigator.clipboard.writeText(url); setCopie(url); } catch { window.prompt("Copiez ce lien", url); }
   }
@@ -92,9 +132,13 @@ export default function Planning() {
   useEffect(() => {
     if (!plan?.publie_le || plan.statut !== "termine") return;
     const id = plan.id;
-    const t = setInterval(() => lire(id), 30000);
+    const t = setInterval(() => { lire(id); chargerSuivi(id); }, 30000);
     return () => clearInterval(t);
-  }, [plan?.id, plan?.publie_le, plan?.statut, lire]);
+  }, [plan?.id, plan?.publie_le, plan?.statut, lire, chargerSuivi]);
+
+  useEffect(() => {
+    if (plan?.statut === "termine") chargerSuivi(plan.id);
+  }, [plan?.id, plan?.statut, chargerSuivi]);
 
   async function optimiser() {
     setErreur("");
@@ -182,6 +226,24 @@ export default function Planning() {
             <div><dt>Non affectées</dt><dd>{plan!.resume.nb_non_affectees}<Delta valeur={plan!.resume.nb_non_affectees} ref={ref?.nb_non_affectees} /></dd></div>
           </dl>
           {plan!.resume.vehicules_exclus.length > 0 && <div className="notice" role="status">Camions non planifiés : {plan!.resume.vehicules_exclus.map((e) => `${e.plaque} (${e.raison.toLowerCase()})`).join(", ")}</div>}
+          {trafic && <p className="hint" style={{ marginBottom: 8 }}>Trafic en direct : {!trafic.actif ? "désactivé (durées du plan)" : trafic.indisponible ? `${trafic.fournisseur} indisponible, durées du plan` : `actif (${trafic.fournisseur})`}.</p>}
+          {retardsPrevus.length > 0 && (
+            <div className="notice danger" role="alert" aria-label="Retards prévus">
+              <strong>{retardsPrevus.length} retard{retardsPrevus.length > 1 ? "s" : ""} prévu{retardsPrevus.length > 1 ? "s" : ""} sur une fenêtre horaire</strong>
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                {retardsPrevus.map((r) => <li key={r.order_id}>{r.message} <button className="link-btn" style={{ minHeight: 0, padding: 0 }} onClick={() => proposer({ type: "retard" }, `Retard sur ${r.reference}`)}>Voir des solutions</button></li>)}
+              </ul>
+            </div>
+          )}
+          <div id="urgence" className="barre-outils">
+            <button className="btn btn-sm" onClick={ouvrirUrgence}>Commande urgente…</button>
+            {urgentes.length > 0 && (
+              <select className="select" style={{ width: "auto" }} aria-label="Commande urgente à insérer" value="" onChange={(e) => e.target.value && proposer({ type: "urgence", order_id: Number(e.target.value) }, "Commande urgente")}>
+                <option value="">Choisir la commande…</option>
+                {urgentes.map((c) => <option key={c.id} value={c.id}>{c.reference} · {c.adresse}</option>)}
+              </select>
+            )}
+          </div>
           {plan!.avancement && (
             <div className="notice ok" role="status">
               <strong>Suivi en direct :</strong> {plan!.avancement.livrees} livrée{plan!.avancement.livrees > 1 ? "s" : ""} sur {plan!.avancement.total}
@@ -218,6 +280,7 @@ export default function Planning() {
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
                       <span className="dot" style={{ background: couleurDe(t.vehicle_id), width: 12, height: 12 }} aria-hidden /><Plaque>{t.plaque}</Plaque>
                       <button className="btn btn-ghost btn-sm" aria-pressed={t.verrouille} onClick={() => appeler("verrouiller", { vehicle_id: t.vehicle_id, verrouille: !t.verrouille })}><Cadenas ferme={t.verrouille} />{t.verrouille ? "Tournée verrouillée" : "Verrouiller"}</button>
+                      {!t.verrouille && t.arrets.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => proposer({ type: "panne", vehicle_id: t.vehicle_id }, `Panne de ${t.plaque}`)}>Panne…</button>}
                     </span>
                     <small>{t.arrets.length ? `${hhmm(t.depart_min)} → ${hhmm(t.retour_min)} · ${t.distance_km} km · ${t.charge_kg} kg · ${t.charge_palettes} pal.` : "Aucun arrêt"}</small>
                   </h2>
@@ -310,6 +373,29 @@ export default function Planning() {
           </div>
         </>
       )}
+      <dialog ref={dialogueProp} className="dialog large" aria-labelledby="prop-titre">
+        <div style={{ display: "grid", gap: 18, padding: 24 }}>
+          <div>
+            <h2 id="prop-titre">{propositions?.titre}</h2>
+            <p className="muted" style={{ marginTop: 6 }}>Rien n'est modifié tant que vous n'appliquez pas une solution. Chaque solution est annulable.</p>
+          </div>
+          {propositions && propositions.liste.length === 0 && <div className="notice" role="status" style={{ margin: 0 }}>Aucune solution n'améliore la situation avec les camions disponibles.</div>}
+          {propositions?.liste.map((p) => (
+            <div key={p.index} className="solution">
+              <div style={{ flex: 1 }}>
+                <strong>{p.titre}</strong>
+                <p className="muted">{p.description}</p>
+                <p className="num" style={{ fontSize: 14 }}>
+                  Retards {p.impact.avant.nb_retards} → {p.impact.apres.nb_retards} · retour au plus tard {hhmm(p.impact.apres.retour_max_min)} · {p.impact.apres.km.toLocaleString("fr-FR")} km restants
+                  {p.impact.apres.reportes > 0 && ` · ${p.impact.apres.reportes} arrêt(s) reporté(s)`}
+                </p>
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={() => appliquerProposition(p)}>Appliquer</button>
+            </div>
+          ))}
+          <div className="dialog-actions"><button className="btn" onClick={() => dialogueProp.current?.close()}>Fermer</button></div>
+        </div>
+      </dialog>
       <dialog ref={dialogueLiens} className="dialog large" aria-labelledby="liens-titre">
         <div style={{ display: "grid", gap: 18, padding: 24 }}>
           <div>

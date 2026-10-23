@@ -47,6 +47,7 @@ class Contexte:
     compteurs: dict[int, "reg.Restant"] = field(default_factory=dict)  # conducteur -> temps de conduite restants au départ
     noms_conducteurs: dict[int, str] = field(default_factory=dict)
     minuit: float = 0.0  # échelle de `regulations` du minuit du jour du plan (pour comparer avec les compteurs)
+    positions: dict[int, tuple[float, float]] = field(default_factory=dict)  # ligne des matrices -> (lat, lng) ; 0 = dépôt
 
 
 @dataclass
@@ -82,6 +83,7 @@ class RouteCalculee:
     conduite_min: float = 0.0  # conduite effective, hors pauses
     plafond_conduite_min: float = 540.0  # limite appliquée à cette tournée
     conducteur_id: int | None = None
+    activites: list = field(default_factory=list)  # activités datées (conduite, pauses, services) : sert à relire l'état du conducteur à un instant
 
 
 def hhmm(minutes: float) -> str:
@@ -165,7 +167,8 @@ def calculer_route(ctx: Contexte, vehicule_id: int, commande_ids: list[int], con
     if restant and conduite > restant.conduite_semaine + 1e-6:
         alertes.append(Alerte("conduite_semaine", f"{v.plaque} : dépasse le temps de conduite hebdomadaire restant{qui} ({duree_txt(restant.conduite_semaine)})", vehicule_id, gravite="infraction"))
     return RouteCalculee(vehicule_id, depart, retour, int(trajet), round(km, 1), charge_kg, charge_pal, round(charge_m3, 2), arrets, alertes,
-                         pauses=list(p.pauses), conduite_min=round(conduite, 1), plafond_conduite_min=plafond, conducteur_id=conducteur_id)
+                         pauses=list(p.pauses), conduite_min=round(conduite, 1), plafond_conduite_min=plafond, conducteur_id=conducteur_id,
+                         activites=list(p.activites))
 
 
 def indicateurs(routes: list[RouteCalculee], nb_non_affectees: int, capacite_totale_kg: int | None) -> dict:
@@ -177,3 +180,53 @@ def indicateurs(routes: list[RouteCalculee], nb_non_affectees: int, capacite_tot
             "remplissage_pct": round(100 * charge / capacite_totale_kg) if capacite_totale_kg and utilisees else None,
             "nb_alertes": sum(len(r.alertes) for r in routes), "nb_non_affectees": nb_non_affectees,
             "nb_infractions": sum(1 for r in routes for a in r.alertes if a.gravite == "infraction")}
+
+
+def chrono_a(activites: list, instant: float) -> "reg.Chrono":
+    """Compteur de conduite continue d'un conducteur qui a suivi l'activité prévue jusqu'à `instant` (les activités en cours sont tronquées)."""
+    ch = reg.Chrono()
+    for a in activites:
+        if a.debut >= instant:
+            break
+        ch.appliquer(reg.Activite(a.type, a.debut, min(a.fin, instant)))
+    return ch
+
+
+@dataclass
+class Simulation:
+    arrets: list[ArretCalcule]
+    retour_min: float
+    distance_km: float
+    pauses: list[tuple[float, float]]
+    retards: list[tuple[int, float]]  # (commande_id, minutes de retard sur la fenêtre)
+    apres_fermeture_min: float  # retour au dépôt après la fermeture (0 si respectée)
+
+
+def simuler_depuis(ctx: Contexte, vehicule_id: int, restants: list[int], depuis_ligne: int, depuis_min: float,
+                   chrono: "reg.Chrono | None" = None, ajustement=None) -> Simulation:
+    """Simule la fin de tournée depuis la position et l'heure réelles. `ajustement(i, j)` peut renvoyer une durée (min) observée en direct."""
+    v = ctx.vehicules[vehicule_id]
+    dur, dist = ctx.durees[v.profil], ctx.distances[v.profil]
+    cmds = [ctx.commandes[c] for c in restants]
+    p = reg.demarrer(depuis_min, chrono or reg.Chrono())
+    arrets, retards, km, prec = [], [], 0.0, depuis_ligne
+    for c in cmds:
+        ligne = ctx.ligne[c.id]
+        trajet = ajustement(prec, ligne) if ajustement else None
+        reg.conduire(p, (trajet if trajet is not None else dur[prec][ligne] / 60))
+        km += dist[prec][ligne]
+        attente = 0.0
+        if c.debut_min is not None and p.t < c.debut_min:
+            attente = c.debut_min - p.t
+            reg.attendre(p, attente)
+        arrivee = p.t
+        reg.travailler(p, c.service_min)
+        arrets.append(ArretCalcule(c.id, arrivee, p.t, attente))
+        if c.fin_min is not None and arrivee > c.fin_min + 1e-6:
+            retards.append((c.id, arrivee - c.fin_min))
+        prec = ligne
+    if cmds:
+        trajet = ajustement(prec, 0) if ajustement else None
+        reg.conduire(p, trajet if trajet is not None else dur[prec][0] / 60)
+        km += dist[prec][0]
+    return Simulation(arrets, p.t, round(km, 1), list(p.pauses), retards, max(0.0, p.t - ctx.fermeture_min) if cmds else 0.0)
