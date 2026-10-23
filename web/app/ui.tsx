@@ -56,11 +56,13 @@ export function Chevron({ sens }: { sens: "haut" | "bas" }) {
   );
 }
 
-export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" }) {
+export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" | "integrations" | "offre" }) {
   return (
     <nav className="filtres" aria-label="Réglages">
       <a className="filtre" href="/admin/checklists" aria-current={actif === "checklists" ? "page" : undefined} style={{ textDecoration: "none" }}>Checklists</a>
       <a className="filtre" href="/admin/parametres" aria-current={actif === "parametres" ? "page" : undefined} style={{ textDecoration: "none" }}>Alertes et société</a>
+      <a className="filtre" href="/admin/integrations" aria-current={actif === "integrations" ? "page" : undefined} style={{ textDecoration: "none" }}>Intégrations</a>
+      <a className="filtre" href="/admin/offre" aria-current={actif === "offre" ? "page" : undefined} style={{ textDecoration: "none" }}>Mon offre</a>
     </nav>
   );
 }

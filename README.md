@@ -102,3 +102,15 @@ Module isolé `api/app/regulations/` (règlement CE 561/2006), intégré à l'op
 - **Back-office** : rôle `plateforme` (`PASSWORD=… python create_user.py EMAIL "Nom société" plateforme`), page `/admin/plateforme` : création de société, offre, camions facturés, statut (essai / actif / suspendu), MRR (abonnements actifs seulement), devis et factures PDF numérotés `DE-AAAA-NNNN` / `FA-AAAA-NNNN`. Le paiement se fait par virement.
 - **Mentions légales** : l'identité du vendeur vient de `VENDEUR_NOM`, `VENDEUR_ADRESSE`, `VENDEUR_SIREN`, `VENDEUR_TVA`, `VENDEUR_IBAN` (des marqueurs « à renseigner » s'impriment sinon). Le texte des pénalités de retard et de l'indemnité de 40 € est à faire relire par un comptable avant la première facture réelle.
 - Les fonctions `api` et `stats` de l'offre Pro n'ont pas encore de route à verrouiller (API publique : étape 13).
+
+## API publique et webhooks (étape 13)
+
+Offre Pro. Clés API et webhooks se gèrent dans **Réglages → Intégrations** (administrateurs). Documentation interactive : `/api/v1/docs` ; guide avec exemples curl et Python, vérification de signature : [docs/api-publique.md](docs/api-publique.md) ; script complet : `exemples/api_et_webhook.py`.
+
+- Clés `flt_…` : affichées une fois, stockées hachées (sha256), révocables, dernière utilisation suivie ; 120 requêtes par minute et par clé (`API_LIMITE_PAR_MINUTE`).
+- Webhooks `plan.publie`, `arret.livre`, `controle.defaut_critique`, signés `HMAC-SHA256(secret, "<t>." + corps)`, réessais à 1 min, 5 min, 30 min, 2 h, 12 h puis abandon. Adresses HTTPS publiques uniquement (contrôle à l'enregistrement et à l'envoi). Livraisons conservées en base ; la tâche Celery `relancer_webhooks_task` (toutes les minutes) reprend les envois dus.
+- Limites connues : le compteur de débit est en mémoire (un seul worker API) ; la vérification d'adresse à l'envoi ne protège pas contre un DNS qui change entre la vérification et la connexion ; le secret du webhook est stocké en clair (nécessaire pour signer).
+
+## Page d'accueil et « Mon offre »
+
+`/` est la page d'accueil publique (contrôle départ, tournées, tarifs) ; les tarifs viennent de `GET /api/offres`, donc de la grille configurée, jamais recopiés en dur. Réglages → Mon offre montre l'offre de la société. Aucune référence client ni chiffre d'impact n'est affiché : il n'y en a pas encore.

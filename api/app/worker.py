@@ -23,6 +23,7 @@ celery.conf.update(
     beat_schedule={
         "purge-nocturne": {"task": "app.worker.daily_purge", "schedule": crontab(hour=3, minute=0)},
         "rappels": {"task": "app.worker.send_reminders_task", "schedule": 300.0},
+        "webhooks-dus": {"task": "app.worker.relancer_webhooks_task", "schedule": 60.0},
         "alertes-oubliees": {"task": "app.worker.requeue_unsent_alerts_task", "schedule": 300.0},
     },
 )
@@ -83,6 +84,20 @@ def requeue_unsent_alerts_task():
 def send_reminders_task():
     with SessionLocal() as db:
         return send_reminders(db)
+
+
+@celery.task
+def envoyer_webhook_task(livraison_id: int):
+    from . import webhooks
+    with SessionLocal() as db:
+        return webhooks.envoyer(db, livraison_id)
+
+
+@celery.task
+def relancer_webhooks_task():
+    from . import webhooks
+    with SessionLocal() as db:
+        return webhooks.relancer_dus(db)
 
 
 @celery.task
