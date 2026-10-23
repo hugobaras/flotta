@@ -38,3 +38,12 @@ Squelette du module « contrôle avant départ ». Contexte et étapes : `claude
 - Conducteurs : code PIN à 4 chiffres, unique par société, montré une seule fois (en base : HMAC avec `PIN_SECRET`, à définir en production). Le chauffeur saisit son code sur la page du camion et reçoit un badge signé valable 12 h ; 5 essais ratés par camion et par 15 minutes bloquent la saisie. Sans réseau ou sans code, il peut saisir son nom.
 - Mode hors ligne : un service worker garde la page et la checklist d'un camion déjà ouvert ; un contrôle fait sans réseau est mis en file sur le téléphone (IndexedDB, photos comprises) et envoyé au retour du réseau. Chaque envoi porte un identifiant (`client_id`) : le rejouer ne crée jamais de doublon. L'heure réelle du contrôle (`fait_le`) est conservée si elle est plausible (moins de 7 jours, pas dans le futur).
 - Limite connue : le mode hors ligne suppose que le chauffeur a ouvert la page du camion au moins une fois avec du réseau.
+
+## Commandes, géocodage, dépôts (étape 5)
+
+- Une commande : référence, client, adresse, position, poids, volume, palettes, fenêtre de livraison, durée de service, contraintes (frigo, ADR, hayon), jour de livraison. La référence est unique par société et par jour.
+- Import CSV ou Excel en trois temps : choix du fichier, association des colonnes (proposée automatiquement, **mémorisée par société**), aperçu ligne par ligne, import. Une ligne en erreur est ignorée et listée ; une commande déjà présente (même référence, même jour) est mise à jour.
+- Géocodage par l'API Adresse (api-adresse.data.gouv.fr, service public gratuit) : un seul appel groupé par import, uniquement pour les adresses absentes du cache en base (`geocode_cache`). Score ≥ 0,75 : localisée ; entre 0,5 et 0,75 : à vérifier ; en dessous ou sans résultat : introuvable. Si le service est indisponible, l'import réussit et les commandes restent « en attente » (bouton « Géocoder les … en attente »). Variable `GEOCODER_URL` pour changer de serveur.
+- Correction à la main : sélectionner la commande puis cliquer sur la carte.
+- Dépôts : un par société au minimum (le dernier ne peut pas être supprimé), un seul dépôt par défaut, horaires d'ouverture.
+- Hors périmètre de cette étape : la création d'une commande unique n'a pas d'écran (API `POST /api/admin/commandes` disponible).

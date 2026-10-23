@@ -221,6 +221,12 @@ dialog.dialog[open] { animation: pop 0.22s var(--ease); }
 .pin-input { font-family: var(--mono); font-size: 32px !important; letter-spacing: 0.4em; text-align: center; max-width: 260px; }
 .pin-reveal { font-family: var(--mono); font-size: 28px; font-weight: 500; letter-spacing: 0.15em; }
 
+/* Liste et carte côte à côte */
+.split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.split > div:last-child { position: sticky; top: 16px; }
+@media (max-width: 960px) { .split { grid-template-columns: minmax(0, 1fr); } .split > div:last-child { position: static; } }
+.selection { margin-top: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+
 /* ---------- Pages publiques ---------- */
 .public { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
 .public-body { display: grid; place-items: center; padding: 48px 16px 96px; }

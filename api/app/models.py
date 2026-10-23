@@ -146,3 +146,63 @@ class Alert(Base):
     tentatives: Mapped[int] = mapped_column(default=0)
     erreur: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Depot(Base):
+    __tablename__ = "depots"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    nom: Mapped[str] = mapped_column(String(100))
+    adresse: Mapped[str] = mapped_column(String(300))
+    lat: Mapped[float | None] = mapped_column(Float)
+    lng: Mapped[float | None] = mapped_column(Float)
+    ouverture: Mapped[str] = mapped_column(String(5), default="06:00", server_default="06:00")  # HH:MM
+    fermeture: Mapped[str] = mapped_column(String(5), default="19:00", server_default="19:00")
+    par_defaut: Mapped[bool] = mapped_column(default=False, server_default=false())
+
+
+class Order(Base):
+    __tablename__ = "orders"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    reference: Mapped[str] = mapped_column(String(60))
+    client: Mapped[str] = mapped_column(String(150), default="", server_default="")
+    adresse: Mapped[str] = mapped_column(String(300))
+    lat: Mapped[float | None] = mapped_column(Float)
+    lng: Mapped[float | None] = mapped_column(Float)
+    geo_score: Mapped[float | None] = mapped_column(Float)
+    # a_geocoder | ok | douteux | introuvable | manuel
+    geo_statut: Mapped[str] = mapped_column(String(20), default="a_geocoder", server_default="a_geocoder")
+    poids_kg: Mapped[int] = mapped_column(default=0, server_default="0")
+    volume_m3: Mapped[float] = mapped_column(Float, default=0, server_default="0")
+    palettes: Mapped[int] = mapped_column(default=0, server_default="0")
+    fenetre_debut: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    fenetre_fin: Mapped[str | None] = mapped_column(String(5))
+    duree_service_min: Mapped[int] = mapped_column(default=15, server_default="15")
+    frigo: Mapped[bool] = mapped_column(default=False, server_default=false())
+    adr: Mapped[bool] = mapped_column(default=False, server_default=false())
+    hayon: Mapped[bool] = mapped_column(default=False, server_default=false())
+    date_livraison: Mapped[date] = mapped_column(Date, index=True)
+    statut: Mapped[str] = mapped_column(String(20), default="a_planifier", server_default="a_planifier")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    __table_args__ = (UniqueConstraint("company_id", "reference", "date_livraison", name="uq_order_ref_day"),)
+
+
+class GeocodeCache(Base):
+    """Résultats de géocodage déjà obtenus : une adresse n'est interrogée qu'une fois."""
+    __tablename__ = "geocode_cache"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    adresse_norm: Mapped[str] = mapped_column(String(300), unique=True)
+    lat: Mapped[float | None] = mapped_column(Float)
+    lng: Mapped[float | None] = mapped_column(Float)
+    score: Mapped[float | None] = mapped_column(Float)
+    libelle: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ColumnMapping(Base):
+    """Association colonnes du fichier -> champs d'une commande, mémorisée par société."""
+    __tablename__ = "column_mappings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), unique=True)
+    mapping: Mapped[dict] = mapped_column(JSON)

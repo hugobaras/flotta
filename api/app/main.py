@@ -15,7 +15,9 @@ from .checklist_routes import router as checklist_router
 from .checklists import active_items, create_default_template
 from .db import SessionLocal, get_db
 from .badge import hash_pin, lire_badge, signer_badge
+from .commandes import router as commandes_router
 from .conducteurs import router as conducteurs_router
+from .depots import router as depots_router
 from .exploitation import router as exploitation_router
 from .flotte import router as flotte_router
 from .models import Alert, Check, CheckPhoto, Company, Driver, User, Vehicle
@@ -56,6 +58,8 @@ app.include_router(checklist_router)
 app.include_router(exploitation_router)
 app.include_router(flotte_router)
 app.include_router(conducteurs_router)
+app.include_router(commandes_router)
+app.include_router(depots_router)
 
 
 def vehicle_by_token(token: str, db: Session) -> Vehicle:
