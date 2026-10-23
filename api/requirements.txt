@@ -10,3 +10,5 @@ python-multipart==0.0.*
 tzdata
 celery[redis]==5.4.*
 reportlab==4.2.*
+qrcode==8.*
+openpyxl==3.1.*
