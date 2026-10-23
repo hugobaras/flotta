@@ -38,7 +38,6 @@ export default function Checklists() {
 
   return (
     <main>
-      <a href="/admin">← Véhicules</a>
       <h1>Checklists</h1>
       {modeles.map((m) => (
         <section key={m.id}>
