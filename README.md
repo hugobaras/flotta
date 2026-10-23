@@ -114,3 +114,7 @@ Offre Pro. Clés API et webhooks se gèrent dans **Réglages → Intégrations**
 ## Page d'accueil et « Mon offre »
 
 `/` est la page d'accueil publique (contrôle départ, tournées, tarifs) ; les tarifs viennent de `GET /api/offres`, donc de la grille configurée, jamais recopiés en dur. Réglages → Mon offre montre l'offre de la société. Aucune référence client ni chiffre d'impact n'est affiché : il n'y en a pas encore.
+
+## Production, sécurité et RGPD (étape 14)
+
+Déploiement (Caddy en HTTPS, sauvegardes S3, restauration), supervision (`/api/health`, Sentry, UptimeRobot), procédure d'incident : [docs/exploitation.md](docs/exploitation.md). RGPD : [registre des traitements](docs/rgpd/registre-traitements.md) et [modèle de contrat de sous-traitance](docs/rgpd/contrat-sous-traitance.md), à faire relire par un juriste. Journal d'audit des actions sensibles (déblocage, suppressions, clés API, changement d'offre) ; export et effacement par conducteur ; la purge automatique couvre aussi les événements de livraison, les activités de conduite et l'historique des webhooks (90 jours). En-têtes de sécurité (API et front), limite de débit par adresse (600 requêtes par minute, pages chauffeur exemptées), page d'état publique `/statut`, audit des dépendances dans la CI (`pip-audit`, `npm audit`).

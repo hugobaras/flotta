@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import commandes, offres, plans_api, webhooks
+from .audit import journaliser
 from .auth import current_user
 from .db import get_db
 from .models import ApiKey, Check, Order, Subscription, User, Vehicle, Webhook, WebhookLivraison
@@ -139,6 +140,7 @@ def creer_cle(body: CleIn, user: User = Depends(admin_api), db: Session = Depend
     cle = "flt_" + secrets.token_urlsafe(32)
     k = ApiKey(company_id=user.company_id, nom=body.nom, apercu=cle[:10], hash=digest(cle))
     db.add(k)
+    journaliser(db, user, "creation_cle_api", body.nom)
     db.commit()
     return {"id": k.id, "nom": k.nom, "apercu": k.apercu, "cle": cle, "avertissement": "Copiez cette clé maintenant : elle ne sera plus affichée."}
 
@@ -149,6 +151,7 @@ def revoquer_cle(cle_id: int, user: User = Depends(admin_api), db: Session = Dep
     if not k:
         raise HTTPException(404, "Clé inconnue")
     k.revoquee_le = k.revoquee_le or datetime.now(timezone.utc)
+    journaliser(db, user, "revocation_cle_api", k.nom)
     db.commit()
     return Response(status_code=204)
 
@@ -188,6 +191,7 @@ def supprimer_webhook(webhook_id: int, user: User = Depends(admin_api), db: Sess
     if not w:
         raise HTTPException(404, "Webhook inconnu")
     w.actif = False  # les livraisons passées restent consultables
+    journaliser(db, user, "suppression_webhook", w.url)
     db.commit()
     return Response(status_code=204)
 

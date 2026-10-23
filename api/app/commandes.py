@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import geocodage, tables
+from .audit import journaliser
 from .auth import current_user
 from .db import get_db
 from .models import ColumnMapping, Order, User
@@ -190,7 +191,9 @@ def modifier(order_id: int, body: CommandePatch, user: User = Depends(current_us
 
 @router.delete("/{order_id}", status_code=204)
 def supprimer(order_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    db.delete(_commande(db, user, order_id))
+    o = _commande(db, user, order_id)
+    journaliser(db, user, "suppression_commande", o.reference)
+    db.delete(o)
     db.commit()
     return Response(status_code=204)
 

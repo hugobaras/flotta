@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import conduite
 from . import regulations as reg
+from .audit import journaliser
 from .auth import current_user
 from .badge import hash_pin, nouveau_pin
 from .db import get_db
@@ -132,6 +133,7 @@ def supprimer(driver_id: int, user: User = Depends(current_user), db: Session = 
     d = _driver(db, user, driver_id)
     if db.scalar(select(Check.id).where(Check.conducteur_id == d.id)):
         raise HTTPException(409, "Ce conducteur a des contrôles enregistrés : désactivez-le plutôt que de le supprimer")
+    journaliser(db, user, "suppression_conducteur", f"conducteur {d.id}")
     db.delete(d)
     db.commit()
     return Response(status_code=204)

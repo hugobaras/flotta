@@ -6,7 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 export type Point = { id: number; lat: number; lng: number; couleur: string; titre: string; selectionne?: boolean };
 
 const chargerLib = () => import("maplibre-gl");
-type Lib = Awaited<ReturnType<typeof chargerLib>>["default"];
+type Lib = Awaited<ReturnType<typeof chargerLib>>;
 
 const STYLE = {
   version: 8 as const,
@@ -28,7 +28,8 @@ export default function Carte({ points, ligne, traces, onPoint, onCarte, curseur
 
   useEffect(() => {
     let vivant = true;
-    import("maplibre-gl").then(({ default: maplibregl }) => {
+    import("maplibre-gl").then((maplibregl) => {
+      maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs"); // le worker du paquet n'est pas empaqueté par Next : copié dans public/ au build
       if (!vivant || !conteneur.current || carte.current) return;
       const m = new maplibregl.Map({ container: conteneur.current, style: STYLE, center: [2.35, 46.8], zoom: 4.6 });
       m.on("click", (e) => rappels.current.onCarte?.(e.lngLat.lat, e.lngLat.lng));
@@ -44,7 +45,7 @@ export default function Carte({ points, ligne, traces, onPoint, onCarte, curseur
   }, []);
 
   async function dessiner(lib?: Lib) {
-    const maplibregl = lib ?? (await import("maplibre-gl")).default;
+    const maplibregl = lib ?? (await import("maplibre-gl"));
     const m = carte.current;
     if (!m) return;
     marqueurs.current.forEach((x) => x.remove());
@@ -85,7 +86,7 @@ export default function Carte({ points, ligne, traces, onPoint, onCarte, curseur
     if (m.isStyleLoaded()) poser();
     else m.once("load", poser);
     if (ligne && ligne.length > 1) {
-      import("maplibre-gl").then(({ default: lib }) => {
+      import("maplibre-gl").then((lib) => {
         const b = new lib.LngLatBounds();
         ligne.forEach((c) => b.extend(c));
         m.fitBounds(b, { padding: 50, duration: 0 });

@@ -84,6 +84,17 @@ class WebhookLivraison(Base):
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class AuditLog(Base):
+    """Journal d'audit des actions sensibles (déblocage, suppression, changement d'offre, clés…). Jamais modifié ni purgé avec les contrôles."""
+    __tablename__ = "audit_log"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), index=True)
+    user_email: Mapped[str] = mapped_column(String(254))
+    action: Mapped[str] = mapped_column(String(60))
+    cible: Mapped[str] = mapped_column(String(200), default="")
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)

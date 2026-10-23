@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app import auth, photos
+from app import auth, photos, securite
 from app.auth import hasher
 from app.checklists import create_default_template
 from app.db import Base, get_db
@@ -42,6 +42,7 @@ def client():
 
     app.dependency_overrides[get_db] = override
     auth._failures.clear()
+    securite._ip.clear()
     c = TestClient(app)  # sans lifespan : pas de seed sur la vraie base
     c.Session = Session  # pour les tests qui touchent directement la base
     yield c
