@@ -1,14 +1,22 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from . import conduite
+from . import regulations as reg
 from .auth import current_user
 from .badge import hash_pin, nouveau_pin
 from .db import get_db
-from .models import Check, Driver, User, Vehicle
+from .models import ActiviteConducteur, Check, Driver, User, Vehicle
 
 router = APIRouter(prefix="/api/admin/conducteurs")
+
+
+def maintenant() -> datetime:
+    return datetime.now(timezone.utc)  # isolé pour pouvoir figer l'horloge dans les tests
 
 
 def _sortie(d: Driver, plaque: str | None) -> dict:
@@ -99,3 +107,102 @@ def supprimer(driver_id: int, user: User = Depends(current_user), db: Session = 
     db.delete(d)
     db.commit()
     return Response(status_code=204)
+
+
+# --- Temps de conduite : activités déclarées et compteurs (règlement CE 561/2006) ---
+
+
+class ActiviteIn(BaseModel):
+    type: str
+    debut: datetime
+    fin: datetime
+
+    @field_validator("type")
+    @classmethod
+    def type_valide(cls, v: str) -> str:
+        if v not in reg.activites.TYPES:
+            raise ValueError("Type inconnu : conduite, travail, disponibilite ou repos")
+        return v
+
+    @model_validator(mode="after")
+    def coherente(self):
+        if self.debut.tzinfo is None or self.fin.tzinfo is None:
+            raise ValueError("Précisez le fuseau horaire (par exemple +01:00)")
+        if self.fin <= self.debut:
+            raise ValueError("La fin doit être après le début")
+        if self.fin - self.debut > timedelta(hours=24):
+            raise ValueError("Une activité dure 24 h au plus")
+        self.debut, self.fin = self.debut.astimezone(timezone.utc), self.fin.astimezone(timezone.utc)  # tout est comparé en UTC
+        return self
+
+
+class ActivitesIn(BaseModel):
+    activites: list[ActiviteIn] = Field(min_length=1, max_length=200)
+
+
+def _sortie_activite(a: ActiviteConducteur) -> dict:
+    return {"id": a.id, "type": a.type, "debut": a.debut, "fin": a.fin}
+
+
+@router.get("/{driver_id}/activites")
+def lister_activites(driver_id: int, jours: int = 15, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    d = _driver(db, user, driver_id)
+    depuis = maintenant() - timedelta(days=max(1, min(jours, 60)))
+    rows = db.scalars(select(ActiviteConducteur).where(ActiviteConducteur.conducteur_id == d.id, ActiviteConducteur.fin > depuis)
+                      .order_by(ActiviteConducteur.debut))
+    return [_sortie_activite(a) for a in rows]
+
+
+@router.post("/{driver_id}/activites", status_code=201)
+def declarer_activites(driver_id: int, body: ActivitesIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    d = _driver(db, user, driver_id)
+    ref = maintenant()
+    for a in body.activites:
+        if a.debut < ref - timedelta(days=60) or a.fin > ref + timedelta(days=2):
+            raise HTTPException(422, "Les activités doivent se situer dans les 60 derniers jours (ou demain au plus tard)")
+    lot = sorted(body.activites, key=lambda a: a.debut)
+    for x, y in zip(lot, lot[1:]):
+        if y.debut < x.fin:
+            raise HTTPException(409, "Deux activités déclarées se chevauchent")
+    existantes = list(db.scalars(select(ActiviteConducteur).where(
+        ActiviteConducteur.conducteur_id == d.id, ActiviteConducteur.fin > lot[0].debut, ActiviteConducteur.debut < lot[-1].fin)))
+    for a in lot:
+        for e in existantes:
+            efin, edebut = e.fin.replace(tzinfo=e.fin.tzinfo or timezone.utc), e.debut.replace(tzinfo=e.debut.tzinfo or timezone.utc)
+            if a.debut < efin and a.fin > edebut:
+                raise HTTPException(409, "Une activité déclarée chevauche une activité déjà enregistrée")
+    lignes = [ActiviteConducteur(company_id=user.company_id, conducteur_id=d.id, type=a.type, debut=a.debut, fin=a.fin) for a in lot]
+    db.add_all(lignes)
+    db.commit()
+    return [_sortie_activite(a) for a in lignes]
+
+
+@router.delete("/{driver_id}/activites/{activite_id}", status_code=204)
+def supprimer_activite(driver_id: int, activite_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    d = _driver(db, user, driver_id)
+    a = db.scalar(select(ActiviteConducteur).where(ActiviteConducteur.id == activite_id, ActiviteConducteur.conducteur_id == d.id))
+    if not a:
+        raise HTTPException(404, "Activité inconnue")
+    db.delete(a)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.get("/{driver_id}/compteurs")
+def compteurs(driver_id: int, instant: datetime | None = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Temps de conduite restants du conducteur à l'instant donné (maintenant par défaut), et infractions de l'historique."""
+    d = _driver(db, user, driver_id)
+    if instant is not None and instant.tzinfo is None:
+        raise HTTPException(422, "Précisez le fuseau horaire de l'instant (par exemple +01:00)")
+    t = conduite.minutes(instant or maintenant())
+    histo = conduite.historique(db, d.id, t)
+    r = reg.restant(histo, t)
+    analyse = reg.analyser(histo)
+    return {
+        "conduite_continue_min": round(r.conduite_continue), "pause_necessaire_min": round(r.pause_necessaire),
+        "conduite_jour_min": round(r.conduite_jour), "conduite_jour_normale_min": round(r.conduite_jour_normale),
+        "extensions_restantes": r.extensions_restantes, "conduite_semaine_min": round(r.conduite_semaine),
+        "debut_possible": conduite.instant(r.debut_possible), "debut_possible_reduit": conduite.instant(r.debut_possible_reduit),
+        "infractions": [{"code": i.code, "message": i.message, "debut": conduite.instant(i.debut), "fin": conduite.instant(i.fin)} for i in analyse.infractions],
+        "notes": analyse.notes,
+    }

@@ -247,6 +247,9 @@ class Route(Base):
     charge_palettes: Mapped[int] = mapped_column(default=0)
     charge_m3: Mapped[float] = mapped_column(Float, default=0)
     verrouille: Mapped[bool] = mapped_column(default=False, server_default=false())
+    conducteur_id: Mapped[int | None] = mapped_column(ForeignKey("drivers.id"))
+    conduite_min: Mapped[float] = mapped_column(Float, default=0, server_default="0")  # conduite effective, hors pauses
+    pauses: Mapped[list] = mapped_column(JSON, default=list)  # pauses réglementaires insérées : [[début, fin], ...] en minutes
 
 
 class RouteStop(Base):
@@ -272,3 +275,14 @@ class PlanSnapshot(Base):
     etat: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     __table_args__ = (UniqueConstraint("plan_id", "seq", name="uq_snapshot_seq"),)
+
+
+class ActiviteConducteur(Base):
+    """Activité déclarée d'un conducteur (conduite, autre tâche, disponibilité, repos) : base du calcul des temps restants."""
+    __tablename__ = "driver_activities"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    conducteur_id: Mapped[int] = mapped_column(ForeignKey("drivers.id"), index=True)
+    type: Mapped[str] = mapped_column(String(20))  # conduite | travail | disponibilite | repos
+    debut: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    fin: Mapped[datetime] = mapped_column(DateTime(timezone=True))

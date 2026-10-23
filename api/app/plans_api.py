@@ -24,6 +24,7 @@ class PlanIn(BaseModel):
     jour: date
     vehicle_ids: list[int] | None = Field(default=None, max_length=200)
     depot_id: int | None = None
+    affectations: dict[int, int] | None = None  # véhicule -> conducteur ; sinon le conducteur habituel du véhicule
     temps_max_s: int = Field(default=10, ge=1, le=120)  # temps de calcul maximal
     duree_max_min: int = Field(default=600, ge=60, le=900)  # durée maximale d'une tournée
 
@@ -134,6 +135,17 @@ def annuler(plan_id: int, user: User = Depends(current_user), db: Session = Depe
 def retablir(plan_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     p = _plan(db, user, plan_id)
     return _appliquer(db, p, lambda: plans.retablir(db, p))
+
+
+class Affectation(BaseModel):
+    vehicle_id: int
+    conducteur_id: int | None = None
+
+
+@router.post("/{plan_id}/affecter")
+def affecter(plan_id: int, body: Affectation, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    p = _plan(db, user, plan_id)
+    return _appliquer(db, p, lambda: plans.affecter(db, p, body.vehicle_id, body.conducteur_id))
 
 
 class VersionIn(BaseModel):
