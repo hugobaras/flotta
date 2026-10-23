@@ -398,3 +398,13 @@ def test_traffic_feature_flag(monkeypatch, env, attendu):
         monkeypatch.setenv(k, v)
     f = trafic.fournisseur()
     assert (f.nom if f else None) == attendu
+
+
+def test_an_inserted_stop_takes_the_rotation_of_the_stop_before_it():
+    from app.suivi import Vivant
+    base = Vivant(1, False, None, [1, 2, 3], [2, 3], 0, 0.0, None, set(), {1: 1, 2: 2, 3: 2}, 1)
+    debut = base.copie()
+    debut.inserer(9, 0)  # avant le 1er arrêt restant, après l'arrêt 1 déjà fait : même rotation que ce dernier
+    fin = base.copie()
+    fin.inserer(9, 1)  # entre les arrêts 2 et 3 (rotation 2)
+    assert (debut.rotations[9], fin.rotations[9]) == (1, 2) and base.rotations == {1: 1, 2: 2, 3: 2}

@@ -126,3 +126,21 @@ Déploiement (Caddy en HTTPS, sauvegardes S3, restauration), supervision (`/api/
 - **Aide** : infobulles `?` sur le planning, les conducteurs et les commandes ; guides d'une page par module en PDF (`/aide/*.pdf`), générés depuis `docs/client/*.md` par `scripts/guides_pdf.py`.
 - **Signaler un problème** (pied de page de l'espace exploitant) : message enregistré avec la page, la société, la version (`APP_VERSION`) et le navigateur ; lisible par la plateforme (`GET /api/plateforme/signalements`) ; envoyé par email à `SUPPORT_EMAIL` si Brevo est configuré.
 - Non mesuré : le critère « opérationnel en moins de 30 minutes » demande un essai avec une vraie société vierge.
+
+## Rotations : plusieurs sorties du dépôt par camion et par jour
+
+Un camion qui rentre au dépôt peut recharger et repartir (3 sorties au plus, réglable par plan : `rotations_max` de 1 à 3, `rechargement_min` de 15 à 240, 45 par défaut). Cocher « Plusieurs rotations par camion » dans le planning, ou passer ces paramètres à `POST /api/admin/plans`.
+
+- **Données** : une tournée reste une ligne par camion ; chaque arrêt porte son numéro de `rotation`. L'API publique et la page du chauffeur exposent ce numéro.
+- **Calcul** (`planning.py`) : au changement de rotation, retour au dépôt, rechargement, nouveau départ. Capacité et durée maximale sont vérifiées **par rotation** ; la conduite journalière, les pauses et la fermeture du dépôt, **sur la journée**.
+- **Optimisation** (`optimisation.py`) : passes successives. Une première passe donne une sortie à chaque camion ; ce qui reste est proposé aux camions rentrés (départ après retour et rechargement, conduite restante), jusqu'à `rotations_max`. Ce choix est plus simple et plus robuste qu'un modèle unique (le solveur ne sait pas ajouter d'un coup une livraison et un rechargement), mais il peut laisser un peu d'optimum sur la table.
+- **Modification à la main** : « Déplacer… » propose « Rotation N de ce camion » et « Nouvelle rotation » ; un arrêt déplacé sans précision prend la rotation de l'arrêt qui le précède. Une rotation vidée disparaît.
+- **Suivi en direct et propositions** : les simulations tiennent compte du retour au dépôt quand l'arrêt suivant est d'une autre rotation.
+- **Hypothèse à confirmer** : le rechargement est compté comme autre tâche, donc il ne remplace jamais une pause du conducteur ; le calcul de pauses reste prudent (une pause est ajoutée dès que 4 h 30 de conduite sont atteintes, même à cheval sur deux rotations). Valeur de 45 min de rechargement : à ajuster avec vos dépôts.
+- Les plans calculés avant cette fonction restent à une seule rotation.
+
+## Attentes absorbées et archivage des anciens calculs
+
+- **Départ retardé** : quand un camion arriverait avant l'ouverture de la fenêtre d'un client, le recalcul retarde son départ (ou, pour une rotation 2 ou 3, sa sortie du dépôt) plutôt que de le faire attendre devant le client, sans jamais faire fermer la fenêtre d'un arrêt qui précède. L'heure de retour ne change pas, mais la durée de tournée (donc l'alerte de durée maximale) ne compte plus cette attente. Les départs prévus sont donc plus tardifs, et « attente » n'apparaît plus que lorsqu'une fenêtre qui ferme plus tôt empêche de décaler.
+- **Archivage** : un calcul réussi (« Optimiser » ou « Recalculer le plan ») archive les anciens calculs du même jour. Ils ne sont pas supprimés : ils restent sous « Anciens calculs » dans le sélecteur du planning et dans `GET /api/admin/plans` (`archive: true`). Les plans **publiés** aux chauffeurs et les **versions nommées** ne sont jamais archivés. Un calcul qui échoue, ou une réoptimisation, n'archive rien. Le tableau de bord ignore les calculs archivés.
+- Les anciens calculs archivés ne sont pas supprimés automatiquement : la suppression se fait à la main (`DELETE /api/admin/plans/{id}`).

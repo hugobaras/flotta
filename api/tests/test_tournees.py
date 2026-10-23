@@ -403,3 +403,16 @@ def test_import_maps_contact_phone_and_instructions(a, client):
     assert r.status_code == 200 and r.json()["crees"] == 1
     o = a.get("/api/admin/commandes").json()[0]
     assert (o["contact_nom"], o["contact_telephone"], o["consignes"]) == ("M. Roux", "0699887766", "Quai arrière")
+
+
+def test_driver_sees_the_rotation_of_each_stop(a, client, calcul):
+    from test_plans import camion as camion_, commandes_de_8_palettes, depot as depot_, lancer
+    vid = camion_(a, "AA-100-AA", palettes=10)
+    depot_(a)
+    commandes_de_8_palettes(client)
+    pid = lancer(a)
+    executer(client, pid)
+    tok = token_de(a, pid)
+    controle_fait(client, vid)
+    arrets = lire(a, tok).json()["arrets"]
+    assert [x["rotation"] for x in arrets] == [1, 2, 3]

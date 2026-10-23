@@ -116,7 +116,7 @@ def lire(token: str, db: Session = Depends(get_db)):
     etat = livraisons.derniers_evenements(db, plan.id)
     base.update(depart_min=route.depart_min, retour_min=route.retour_min, distance_km=route.distance_km, pauses=route.pauses or [])
     base["arrets"] = [{
-        "order_id": o.id, "ordre": s.ordre, "reference": o.reference, "client": o.client, "adresse": o.adresse, "lat": o.lat, "lng": o.lng,
+        "order_id": o.id, "ordre": s.ordre, "rotation": s.rotation, "reference": o.reference, "client": o.client, "adresse": o.adresse, "lat": o.lat, "lng": o.lng,
         "arrivee_min": s.arrivee_min, "fenetre_debut": o.fenetre_debut, "fenetre_fin": o.fenetre_fin, "palettes": o.palettes, "poids_kg": o.poids_kg,
         "contact_nom": o.contact_nom, "contact_telephone": o.contact_telephone, "consignes": o.consignes,
         "statut": (etat.get(o.id) or {}).get("statut"), "motif": (etat.get(o.id) or {}).get("motif"),

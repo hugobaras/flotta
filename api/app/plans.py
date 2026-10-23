@@ -1,7 +1,9 @@
 """Construction, calcul, modification et lecture des plans de tournées."""
 import logging
 
-from sqlalchemy import delete, select
+from datetime import datetime, timezone
+
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from . import conduite, matrices, optimisation as opt, planning, routage
@@ -124,12 +126,13 @@ def _executer(db: Session, plan: Plan):
         vehicules=[_veh_opt(v, compt.get(affectes.get(v.id)), minuit) for v in vehicules],
         commandes=[_cmd_opt(o) for o in commandes], matrices={k: m["durations"] for k, m in mats.items()},
         ouverture_min=_minutes(depot.ouverture), fermeture_min=_minutes(depot.fermeture),
-        duree_max_min=p.get("duree_max_min", 600), temps_calcul_s=p.get("temps_max_s", 10)))
+        duree_max_min=p.get("duree_max_min", 600), temps_calcul_s=p.get("temps_max_s", 10),
+        rotations_max=p.get("rotations_max", 1), rechargement_min=p.get("rechargement_min", 45)))
 
     _progres(db, plan, 90, "Enregistrement du plan")
     par_vehicule = {r.vehicule_id: r for r in solution.routes}
     etat = {"routes": [{"vehicle_id": v.id, "verrouille": False, "conducteur_id": affectes.get(v.id),
-                        "arrets": [{"order_id": a.commande_id, "verrouille": False} for a in par_vehicule[v.id].arrets] if v.id in par_vehicule else []}
+                        "arrets": [{"order_id": a.commande_id, "verrouille": False, "rotation": a.rotation} for a in par_vehicule[v.id].arrets] if v.id in par_vehicule else []}
                        for v in vehicules],
             "non_affectees": non_affectees + [{"order_id": c, "raison": r} for c, r in solution.non_affectees]}
     plan.resume = {"vehicules_exclus": exclus}
@@ -137,7 +140,15 @@ def _executer(db: Session, plan: Plan):
     plan.curseur = -1
     pousser(db, plan, etat, "Plan optimisé")
     plan.statut, plan.progression, plan.message = "termine", 100, None
+    archiver_anciens(db, plan)
     db.commit()
+
+
+def archiver_anciens(db: Session, plan: Plan):
+    """Un calcul réussi remplace les calculs précédents du même jour : ils sont archivés (rangés, pas supprimés).
+    Sont protégés : les plans publiés aux chauffeurs et les versions enregistrées sous un nom."""
+    db.execute(update(Plan).where(Plan.company_id == plan.company_id, Plan.jour == plan.jour, Plan.id != plan.id, Plan.statut == "termine",
+                                  Plan.publie_le.is_(None), Plan.nom.is_(None), Plan.archive_le.is_(None)).values(archive_le=datetime.now(timezone.utc)))
 
 
 def _affectations(db: Session, plan: Plan, vehicules: list[Vehicle]) -> dict[int, int]:
@@ -192,11 +203,11 @@ def _reoptimiser(db: Session, plan: Plan):
         commandes=[_cmd_opt(commandes[i], impose.get(i)) for i in ids],
         matrices={k: [[ctx.durees[k][a][b] for b in rows] for a in rows] for k in profils},
         ouverture_min=ctx.ouverture_min, fermeture_min=ctx.fermeture_min, duree_max_min=ctx.duree_max_min,
-        temps_calcul_s=p.get("temps_max_s", 10)))
+        temps_calcul_s=p.get("temps_max_s", 10), rotations_max=p.get("rotations_max", 1), rechargement_min=p.get("rechargement_min", 45)))
     _progres(db, plan, 90, "Enregistrement du plan")
     par_vehicule = {r.vehicule_id: r for r in solution.routes}
     nouvelles = {r["vehicle_id"]: {"vehicle_id": r["vehicle_id"], "verrouille": False, "conducteur_id": r.get("conducteur_id"),
-                                   "arrets": [{"order_id": a.commande_id, "verrouille": impose.get(a.commande_id) == r["vehicle_id"]}
+                                   "arrets": [{"order_id": a.commande_id, "verrouille": impose.get(a.commande_id) == r["vehicle_id"], "rotation": a.rotation}
                                               for a in par_vehicule[r["vehicle_id"]].arrets] if r["vehicle_id"] in par_vehicule else []}
                  for r in libres}
     etat_nouveau = {"routes": [r if r["verrouille"] else nouvelles[r["vehicle_id"]] for r in etat["routes"]],
@@ -239,6 +250,7 @@ def contexte(db: Session, plan: Plan, matrices_: dict | None = None) -> planning
                              {k: p["distances"] for k, p in m.get("profils", {}).items()},
                              compteurs={d.id: conduite.compteurs(db, d.id, plan.jour, ouverture) for d in pilotes},
                              noms_conducteurs={d.id: d.nom for d in pilotes}, minuit=conduite.minuit(plan.jour),
+                             rechargement_min=plan.parametres.get("rechargement_min", 45),
                              positions={0: (depot.lat, depot.lng), **{ligne[o]: (c.lat, c.lng) for o, c in positions.items() if o in ligne}})
 
 
@@ -247,17 +259,21 @@ def charger_etat(db: Session, plan: Plan) -> dict:
     for r in db.scalars(select(Route).where(Route.plan_id == plan.id).order_by(Route.id)):
         arrets = db.scalars(select(RouteStop).where(RouteStop.route_id == r.id).order_by(RouteStop.ordre))
         routes.append({"vehicle_id": r.vehicle_id, "verrouille": r.verrouille, "conducteur_id": r.conducteur_id,
-                       "arrets": [{"order_id": s.order_id, "verrouille": s.verrouille} for s in arrets]})
+                       "arrets": [{"order_id": s.order_id, "verrouille": s.verrouille, "rotation": s.rotation} for s in arrets]})
     return {"routes": routes, "non_affectees": list(plan.non_affectees)}
 
 
 def _calculer(ctx: planning.Contexte, etat: dict) -> list[planning.RouteCalculee]:
-    return [planning.calculer_route(ctx, r["vehicle_id"], [a["order_id"] for a in r["arrets"]], r.get("conducteur_id")) for r in etat["routes"]]
+    return [planning.calculer_route(ctx, r["vehicle_id"], [a["order_id"] for a in r["arrets"]], r.get("conducteur_id"),
+                                    [a.get("rotation", 1) for a in r["arrets"]]) for r in etat["routes"]]
 
 
 def _capacite_totale(ctx: planning.Contexte, etat: dict) -> int | None:
     caps = [ctx.vehicules[r["vehicle_id"]].capacite_kg for r in etat["routes"]]
-    return sum(c for c in caps if c) if all(caps) else None
+    if not all(caps):
+        return None
+    # Un camion qui fait deux rotations peut porter deux fois sa capacité dans la journée.
+    return sum(c * max(1, len({a.get("rotation", 1) for a in r["arrets"]})) for c, r in zip(caps, etat["routes"]))
 
 
 def ecrire_etat(db: Session, plan: Plan, etat: dict):
@@ -279,7 +295,7 @@ def ecrire_etat(db: Session, plan: Plan, etat: dict):
         db.flush()
         for n, (a, calc) in enumerate(zip(r["arrets"], c.arrets), start=1):
             db.add(RouteStop(company_id=plan.company_id, route_id=route.id, ordre=n, order_id=a["order_id"], arrivee_min=calc.arrivee_min,
-                             depart_min=calc.depart_min, attente_min=calc.attente_min, verrouille=a["verrouille"]))
+                             depart_min=calc.depart_min, attente_min=calc.attente_min, verrouille=a["verrouille"], rotation=calc.rotation))
             en_route.add(a["order_id"])
     plan.non_affectees = etat["non_affectees"]
     tous = en_route | {n["order_id"] for n in etat["non_affectees"]}
@@ -332,8 +348,17 @@ def _copie(etat: dict) -> dict:
     return {"routes": [{**r, "arrets": [dict(a) for a in r["arrets"]]} for r in etat["routes"]], "non_affectees": [dict(n) for n in etat["non_affectees"]]}
 
 
-def deplacer_etat(etat: dict, order_id: int, vehicle_id: int | None, position: int | None) -> dict:
-    """Déplace un arrêt dans un état (copie modifiée) : vers un camion à une position, ou hors du plan."""
+def _renumeroter(route: dict):
+    """Après une modification : rotations croissantes et sans trou (une rotation vidée disparaît)."""
+    nums = planning.normaliser_rotations([a.get("rotation", 1) for a in route["arrets"]], len(route["arrets"]))
+    for a, n in zip(route["arrets"], nums):
+        a["rotation"] = n
+
+
+def deplacer_etat(etat: dict, order_id: int, vehicle_id: int | None, position: int | None, rotation: int | None = None) -> dict:
+    """Déplace un arrêt dans un état (copie modifiée) : vers un camion à une position, ou hors du plan.
+    Sans `rotation`, l'arrêt prend celle de son voisin ; avec `rotation`, il rejoint cette rotation (position dans la rotation, fin par défaut),
+    et un numéro supérieur au dernier en ouvre une nouvelle."""
     etat = _copie(etat)
     source = next((r for r in etat["routes"] if any(a["order_id"] == order_id for a in r["arrets"])), None)
     non_aff = next((n for n in etat["non_affectees"] if n["order_id"] == order_id), None)
@@ -358,14 +383,33 @@ def deplacer_etat(etat: dict, order_id: int, vehicle_id: int | None, position: i
     if cible is None:
         etat["non_affectees"].append({"order_id": order_id, "raison": "Retirée du plan à la main"})
     else:
-        pos = len(cible["arrets"]) if position is None else max(0, min(position, len(cible["arrets"])))
-        cible["arrets"].insert(pos, arret)
+        _renumeroter(cible)
+        arrets = cible["arrets"]
+        if rotation is not None:
+            derniere = max((a["rotation"] for a in arrets), default=1)
+            rotation = min(rotation, derniere + 1)  # on n'ouvre qu'une rotation à la fois, à la suite des autres
+            dans = [i for i, a in enumerate(arrets) if a["rotation"] == rotation]
+            debut = dans[0] if dans else len(arrets)
+            pos = debut + (len(dans) if position is None else max(0, min(position, len(dans))))
+            arret["rotation"] = rotation
+        else:
+            pos = len(arrets) if position is None else max(0, min(position, len(arrets)))
+            voisin = arrets[pos - 1] if pos else (arrets[0] if arrets else None)
+            arret["rotation"] = voisin["rotation"] if voisin else 1
+        arrets.insert(pos, arret)
+        _renumeroter(cible)
+    if source:
+        _renumeroter(source)  # une rotation vidée disparaît
     return etat
 
 
-def deplacer(db: Session, plan: Plan, order_id: int, vehicle_id: int | None, position: int | None):
+def deplacer(db: Session, plan: Plan, order_id: int, vehicle_id: int | None, position: int | None, rotation: int | None = None):
     """Déplace un arrêt vers un autre camion (ou dans le même) à la position donnée, ou le rend non affecté."""
-    pousser(db, plan, deplacer_etat(charger_etat(db, plan), order_id, vehicle_id, position), "Déplacement d'un arrêt")
+    etat = deplacer_etat(charger_etat(db, plan), order_id, vehicle_id, position, rotation)
+    maxi = plan.parametres.get("rotations_max", 3)
+    if any(a["rotation"] > maxi for r in etat["routes"] for a in r["arrets"]):
+        raise ModificationRefusee(f"Ce plan autorise {maxi} rotation{'s' if maxi > 1 else ''} au plus par camion")
+    pousser(db, plan, etat, "Déplacement d'un arrêt")
 
 
 def verrouiller(db: Session, plan: Plan, vehicle_id: int | None, order_id: int | None, verrouille: bool):
@@ -444,7 +488,7 @@ def detail(db: Session, plan: Plan) -> dict:
             "charge_m3": r.charge_m3, "verrouille": r.verrouille, "conducteur_id": r.conducteur_id, "conduite_min": r.conduite_min,
             "pauses": r.pauses or [],
             "arrets": [{"id": s.id, "ordre": s.ordre, "order_id": s.order_id, "arrivee_min": s.arrivee_min, "depart_min": s.depart_min,
-                        "attente_min": s.attente_min, "verrouille": s.verrouille, **cmd(commandes.get(s.order_id)),
+                        "attente_min": s.attente_min, "verrouille": s.verrouille, "rotation": s.rotation, **cmd(commandes.get(s.order_id)),
                         "livraison": suivi.get(s.order_id),
                         "retard_min": livraisons.retard_min(s.arrivee_min, (suivi.get(s.order_id) or {}).get("statut"), plan.jour) if plan.publie_le else None}
                        for s in arrets]})
@@ -456,7 +500,9 @@ def detail(db: Session, plan: Plan) -> dict:
     if plan.statut == "termine" and plan.matrices:
         ctx = contexte(db, plan)
         etat = charger_etat(db, plan)
-        out["alertes"] = [a.__dict__ for r in _calculer(ctx, etat) for a in r.alertes]
+        calculees = _calculer(ctx, etat)
+        par_vehicule = {c.vehicule_id: c for c in calculees}
+        out["alertes"] = [a.__dict__ for r in calculees for a in r.alertes]
         origine = _snapshot(db, plan, 0)
         if origine:
             ref = planning.indicateurs(_calculer(ctx, origine.etat), len(origine.etat["non_affectees"]), _capacite_totale(ctx, origine.etat))
@@ -468,9 +514,10 @@ def detail(db: Session, plan: Plan) -> dict:
                                "conduite_semaine_min": round(x.conduite_semaine), "extensions_restantes": x.extensions_restantes,
                                "debut_possible_min": round(max(0, x.debut_possible - ctx.minuit))} for d, x in ctx.compteurs.items()]
         for r in out["routes"]:
-            c = next((x for x in _calculer(ctx, etat) if x.vehicule_id == r["vehicle_id"]), None)
+            c = par_vehicule.get(r["vehicle_id"])
             r["plafond_conduite_min"] = c.plafond_conduite_min if c else None
             r["conduite_restante_min"] = round(c.plafond_conduite_min - c.conduite_min) if c else None
+            r["rotations"] = [x.__dict__ for x in c.rotations] if c else []
     if plan.publie_le:
         arrets = [a for r in out["routes"] for a in r["arrets"]]
         statut = lambda a: (a["livraison"] or {}).get("statut")  # noqa: E731
@@ -479,5 +526,6 @@ def detail(db: Session, plan: Plan) -> dict:
                              "sur_place": sum(1 for a in arrets if statut(a) == "arrive"),
                              "en_retard": sum(1 for a in arrets if a["retard_min"])}
     autres = db.scalars(select(Plan).where(Plan.company_id == plan.company_id, Plan.jour == plan.jour, Plan.statut == "termine").order_by(Plan.id))
-    out["versions"] = [{"id": p.id, "nom": p.nom, "created_at": p.created_at} for p in autres]
+    out["versions"] = [{"id": p.id, "nom": p.nom, "created_at": p.created_at, "archive": p.archive_le is not None, "publie": p.publie_le is not None} for p in autres]
+    out["archive"] = plan.archive_le is not None
     return out

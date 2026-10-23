@@ -4,20 +4,20 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Carte, { Point, Trace } from "../../lib/Carte";
 import { Cadenas, Info, Plaque } from "../../ui";
 
-type Arret = { id: number; ordre: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; verrouille: boolean; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; fenetre_fin: string | null; livraison: { statut: "arrive" | "livre" | "impossible" | null; arrive_le: string | null; termine_le: string | null; motif: string | null; nom_destinataire: string | null; a_signature: boolean; photos: number[] } | null; retard_min: number | null };
+type Arret = { id: number; ordre: number; rotation: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; verrouille: boolean; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; fenetre_fin: string | null; livraison: { statut: "arrive" | "livre" | "impossible" | null; arrive_le: string | null; termine_le: string | null; motif: string | null; nom_destinataire: string | null; a_signature: boolean; photos: number[] } | null; retard_min: number | null };
 type Retard = { vehicle_id: number; plaque: string; order_id: number; reference: string; retard_min: number; message: string };
 type Impact = { nb_retards: number; retard_total_min: number; km: number; retour_max_min: number; reportes: number };
 type Proposition = { index: number; titre: string; description: string; actions: { order_id: number; vehicle_id: number | null; position: number | null }[]; impact: { avant: Impact; apres: Impact } };
 type Lien = { vehicle_id: number; plaque: string; url: string; conducteur: string | null; email: string | null };
-type Tournee = { id: number; vehicle_id: number; plaque: string; depart_min: number; retour_min: number; distance_km: number; charge_kg: number; charge_palettes: number; verrouille: boolean; arrets: Arret[]; conducteur_id: number | null; conduite_min: number; pauses: [number, number][]; plafond_conduite_min: number | null; conduite_restante_min: number | null };
+type Tournee = { id: number; vehicle_id: number; plaque: string; depart_min: number; retour_min: number; distance_km: number; charge_kg: number; charge_palettes: number; verrouille: boolean; arrets: Arret[]; conducteur_id: number | null; conduite_min: number; pauses: [number, number][]; plafond_conduite_min: number | null; conduite_restante_min: number | null; rotations: { numero: number; depart_min: number; retour_min: number; charge_palettes: number; charge_kg: number; nb_arrets: number }[] };
 type ConducteurInfo = { id: number; nom: string; vehicle_id: number | null; conduite_jour_min: number; conduite_jour_normale_min: number; conduite_semaine_min: number; extensions_restantes: number; debut_possible_min: number };
 type NonAffectee = { order_id: number; reference?: string; adresse?: string; raison: string };
-type Indic = { km: number; duree_min: number; nb_tournees: number; remplissage_pct: number | null; nb_alertes: number; nb_non_affectees: number; nb_infractions?: number };
+type Indic = { km: number; duree_min: number; nb_tournees: number; nb_rotations?: number; remplissage_pct: number | null; nb_alertes: number; nb_non_affectees: number; nb_infractions?: number };
 type Alerte = { type: string; message: string; route_vehicle_id: number; commande_id: number | null; gravite: "infraction" | "avertissement" };
 type Plan = {
   id: number; jour: string; statut: "en_attente" | "en_cours" | "termine" | "echec"; progression: number; message: string | null; nom: string | null;
   resume: (Indic & { vehicules_exclus: { plaque: string; raison: string }[] }) | null; reference: Indic | null; routes: Tournee[]; non_affectees: NonAffectee[];
-  alertes: Alerte[]; conducteurs: ConducteurInfo[]; publie_le: string | null; avancement: { total: number; livrees: number; impossibles: number; sur_place: number; en_retard: number } | null; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string }[];
+  parametres?: { rotations_max?: number }; alertes: Alerte[]; conducteurs: ConducteurInfo[]; publie_le: string | null; avancement: { total: number; livrees: number; impossibles: number; sur_place: number; en_retard: number } | null; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string; archive?: boolean; publie?: boolean }[];
 };
 
 const COULEURS = ["#111418", "#e5560a", "#1a7f4b", "#2b6cb0", "#8a3ffc", "#c77700", "#d3281b", "#0f8b8d"];
@@ -37,7 +37,9 @@ export default function Planning() {
   const [jour, setJour] = useState(aujourdhui);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [erreur, setErreur] = useState("");
-  const [tempsMax, setTempsMax] = useState(10);
+  const [tempsMax, setTempsMax] = useState(30);
+  const [rotations, setRotations] = useState(true);  // plusieurs sorties du dépôt par camion
+  const [rechargement, setRechargement] = useState(45);
   const [glisse, setGlisse] = useState<number | null>(null);
   const [sur, setSur] = useState<string | null>(null);
   const [pro, setPro] = useState(true);
@@ -67,8 +69,9 @@ export default function Planning() {
     (async () => {
       const r = await fetch("/api/admin/plans");
       if (r.status === 401) return (window.location.href = "/connexion");
-      const liste: { id: number; jour: string }[] = await r.json();
-      const dernier = liste.find((p) => p.jour === jour);
+      const liste: { id: number; jour: string; archive: boolean; statut: string }[] = await r.json();
+      const du_jour = liste.filter((p) => p.jour === jour);
+      const dernier = du_jour.find((p) => !p.archive && p.statut !== "echec") ?? du_jour[0];  // le plus récent des calculs en cours, sinon un ancien
       if (dernier) lire(dernier.id);
     })();
     return () => { if (minuteur.current) clearTimeout(minuteur.current); };
@@ -147,14 +150,14 @@ export default function Planning() {
 
   async function optimiser() {
     setErreur("");
-    const r = await fetch("/api/admin/plans", { method: "POST", headers: json, body: JSON.stringify({ jour, temps_max_s: tempsMax }) });
+    const r = await fetch("/api/admin/plans", { method: "POST", headers: json, body: JSON.stringify({ jour, temps_max_s: tempsMax, rotations_max: rotations ? 3 : 1, rechargement_min: rechargement }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return setErreur(typeof j.detail === "string" ? j.detail : "Impossible de lancer le calcul.");
     setPlan({ id: j.id, jour, statut: "en_attente", progression: 0, message: null, nom: null, resume: null, reference: null, routes: [], non_affectees: [], alertes: [], conducteurs: [], publie_le: null, avancement: null, peut_annuler: false, peut_retablir: false, versions: [] });
     lire(j.id);
   }
 
-  const deplacer = (order_id: number, vehicle_id: number | null, position?: number) => appeler("deplacer", { order_id, vehicle_id, position });
+  const deplacer = (order_id: number, vehicle_id: number | null, position?: number, rotation?: number) => appeler("deplacer", { order_id, vehicle_id, position, rotation });
 
   async function enregistrerVersion() {
     const nom = window.prompt("Nom de cette version du plan", "");
@@ -195,6 +198,12 @@ export default function Planning() {
           <input className="input" type="number" min={1} max={120} value={tempsMax} onChange={(e) => setTempsMax(Number(e.target.value))} style={{ width: 72, minHeight: 34 }} aria-label="Temps de calcul maximal en secondes" />
           <span className="hint">s</span>
         </label>
+        <label className="field" style={{ gridAutoFlow: "column", alignItems: "center", gap: 6 }}>
+          <input type="checkbox" checked={rotations} onChange={(e) => setRotations(e.target.checked)} />
+          <span className="hint">Plusieurs rotations par camion</span>
+          {rotations && <><input className="input" type="number" min={15} max={240} value={rechargement} onChange={(e) => setRechargement(Number(e.target.value))} style={{ width: 72, minHeight: 34 }} aria-label="Temps de rechargement au dépôt en minutes" /><span className="hint">min de rechargement</span></>}
+        </label>
+        <Info>Un camion qui rentre au dépôt peut recharger et repartir (3 sorties au plus). Le chargement compte comme du travail, pas comme une pause du conducteur.</Info>
         {termine && (
           <>
             <button className="btn" onClick={() => appeler("reoptimiser")}>Réoptimiser (hors verrouillés)</button>
@@ -205,7 +214,11 @@ export default function Planning() {
             <button className="btn" onClick={publier}>{plan!.publie_le ? "Liens des chauffeurs" : "Publier aux chauffeurs"}</button>
             {plan!.versions.length > 1 && (
               <select className="select" style={{ width: "auto" }} aria-label="Version du plan" value={plan!.id} onChange={(e) => lire(Number(e.target.value))}>
-                {plan!.versions.map((v) => <option key={v.id} value={v.id}>{v.nom ?? "Plan optimisé"} · {new Date(v.created_at).toLocaleTimeString("fr-FR", { timeStyle: "short" })}</option>)}
+                {[false, true].map((archive) => {
+                  const liste = plan!.versions.filter((v) => !!v.archive === archive);
+                  const options = liste.map((v) => <option key={v.id} value={v.id}>{v.nom ?? "Plan optimisé"}{v.publie ? " · publié" : ""} · {new Date(v.created_at).toLocaleTimeString("fr-FR", { timeStyle: "short" })}</option>);
+                  return !liste.length ? null : archive ? <optgroup key="a" label="Anciens calculs">{options}</optgroup> : options;
+                })}
               </select>
             )}
           </>
@@ -227,6 +240,7 @@ export default function Planning() {
           <dl className="indicateurs" aria-label="Indicateurs du plan, comparés au plan initial">
             <div><dt>Distance</dt><dd>{plan!.resume.km.toLocaleString("fr-FR")} km<Delta valeur={plan!.resume.km} ref={ref?.km} unite=" km" /></dd></div>
             <div><dt>Durée totale</dt><dd>{duree(plan!.resume.duree_min)}<Delta valeur={plan!.resume.duree_min} ref={ref?.duree_min} unite=" min" /></dd></div>
+            {(plan!.resume.nb_rotations ?? 0) > plan!.resume.nb_tournees && <div><dt>Rotations</dt><dd>{plan!.resume.nb_rotations}<span className="muted"> sur {plan!.resume.nb_tournees} camions</span></dd></div>}
             <div><dt>Remplissage</dt><dd>{plan!.resume.remplissage_pct ?? "–"}{plan!.resume.remplissage_pct !== null && " %"}{plan!.resume.remplissage_pct !== null && <Delta valeur={plan!.resume.remplissage_pct} ref={ref?.remplissage_pct ?? undefined} bas={false} unite=" pt" />}</dd></div>
             <div><dt>Alertes</dt><dd>{plan!.resume.nb_alertes}<Delta valeur={plan!.resume.nb_alertes} ref={ref?.nb_alertes} /></dd></div>
             <div><dt>Non affectées</dt><dd>{plan!.resume.nb_non_affectees}<Delta valeur={plan!.resume.nb_non_affectees} ref={ref?.nb_non_affectees} /></dd></div>
@@ -307,6 +321,7 @@ export default function Planning() {
                   {t.arrets.length > 0 && (
                     <>
                       <div className="frise" role="img" aria-label={`Frise horaire de ${t.plaque}`}>
+                        {t.rotations.slice(1).map((r, k) => <span key={`d${r.numero}`} className="bloc depot" title={`Rechargement ${hhmm(t.rotations[k].retour_min)}-${hhmm(r.depart_min)}`} style={{ left: pos(t.rotations[k].retour_min), width: `max(4px, calc(${pos(r.depart_min)} - ${pos(t.rotations[k].retour_min)}))` }} />)}
                         {t.pauses.map(([d, f]) => <span key={d} className="bloc pause" title={`Pause ${hhmm(d)}-${hhmm(f)}`} style={{ left: pos(d), width: `max(4px, calc(${pos(f)} - ${pos(d)}))` }} />)}
                         {t.arrets.map((a) => (
                           <span key={a.id}>
@@ -325,6 +340,15 @@ export default function Planning() {
                       {t.pauses.filter(([, f]) => f <= a.arrivee_min && (n === 0 || f > t.arrets[n - 1].arrivee_min)).map(([d, f]) => (
                         <li key={`p${d}`} className="pause-ligne"><span className="heure">{hhmm(d)}</span><span className="corps">Pause obligatoire de {Math.round(f - d)} min <span className="muted">(4 h 30 de conduite, règlement CE 561/2006)</span></span></li>
                       ))}
+                      {t.rotations.length > 1 && (n === 0 || a.rotation !== t.arrets[n - 1].rotation) && (() => {
+                        const r = t.rotations.find((x) => x.numero === a.rotation);
+                        return r ? (
+                          <li key={`rot${a.rotation}`} className="rotation-ligne">
+                            <span className="heure">{hhmm(r.depart_min)}</span>
+                            <span className="corps"><strong>Rotation {r.numero}</strong> <span className="muted">· {n > 0 ? `retour au dépôt à ${hhmm(t.rotations[a.rotation - 2].retour_min)}, rechargement, ` : ""}départ {hhmm(r.depart_min)}, retour {hhmm(r.retour_min)} · {r.charge_palettes} pal. · {r.nb_arrets} arrêt{r.nb_arrets > 1 ? "s" : ""}</span></span>
+                          </li>
+                        ) : null;
+                      })()}
                       <li
                         className={`stop ${a.verrouille || t.verrouille ? "verrou" : ""} ${sur === `s${a.order_id}` ? "sur" : ""}`}
                         draggable={!a.verrouille && !t.verrouille}
@@ -339,8 +363,10 @@ export default function Planning() {
                             {a.livraison.a_signature && a.livraison.termine_le && <> · signature</>}{a.livraison.photos.length > 0 && <> · {a.livraison.photos.map((p) => <a key={p} href={`/api/admin/plans/livraisons/photos/${p}`} target="_blank" rel="noreferrer">photo</a>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ", ", el] : [el]), [])}</>}</>}
                           {a.retard_min ? <><br /><span style={{ color: "var(--rouge)", fontWeight: 600 }}>En retard de {a.retard_min} min</span></> : null}</span>
                         <select className="select" aria-label={`Déplacer ${a.reference} vers`} value="" disabled={a.verrouille || t.verrouille}
-                          onChange={(e) => { const v = e.target.value; if (v) deplacer(a.order_id, v === "aucun" ? null : Number(v)); }}>
+                          onChange={(e) => { const v = e.target.value; if (!v) return; if (v.startsWith("rot:")) deplacer(a.order_id, t.vehicle_id, undefined, Number(v.slice(4))); else deplacer(a.order_id, v === "aucun" ? null : Number(v)); }}>
                           <option value="">Déplacer…</option>
+                          {t.rotations.filter((r) => r.numero !== a.rotation).map((r) => <option key={`r${r.numero}`} value={`rot:${r.numero}`}>Rotation {r.numero} de ce camion</option>)}
+                          {t.rotations.length < (plan!.parametres?.rotations_max ?? 3) && t.rotations.length > 0 && !(t.rotations.length === 1 && t.arrets.length === 1) && <option value={`rot:${t.rotations.length + 1}`}>Nouvelle rotation de ce camion</option>}
                           {plan!.routes.filter((r) => r.vehicle_id !== t.vehicle_id && !r.verrouille).map((r) => <option key={r.vehicle_id} value={r.vehicle_id}>{r.plaque}</option>)}
                           <option value="aucun">Retirer du plan</option>
                         </select>

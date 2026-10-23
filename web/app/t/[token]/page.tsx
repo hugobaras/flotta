@@ -1,11 +1,11 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { enAttente, Envoi, envoyerUn, mettreEnFile, transitoire, viderLaFile } from "../../lib/offline";
 import { BandeauPublic, Plaque } from "../../ui";
 
 type Arret = {
-  order_id: number; ordre: number; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; arrivee_min: number;
+  order_id: number; ordre: number; rotation?: number; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; arrivee_min: number;
   fenetre_debut: string | null; fenetre_fin: string | null; palettes: number; poids_kg: number; contact_nom: string; contact_telephone: string; consignes: string;
   statut: "arrive" | "livre" | "impossible" | null; motif: string | null;
 };
@@ -166,7 +166,11 @@ export default function MaTournee({ params }: { params: Promise<{ token: string 
             const final = FINAUX.includes(a.statut ?? "");
             const actif = courant?.order_id === a.order_id || ouvert === a.order_id;
             return (
-              <li key={a.order_id} className={`point ${final ? "clos" : ""}`}>
+              <Fragment key={a.order_id}>
+              {a.rotation && a.rotation > 1 && a.rotation !== arrets[arrets.indexOf(a) - 1]?.rotation && (
+                <li className="point rotation-ligne" aria-label={`Rotation ${a.rotation}`}><span className="corps"><strong>Retour au dépôt</strong> <span className="muted">· rechargement, puis rotation {a.rotation}</span></span></li>
+              )}
+              <li className={`point ${final ? "clos" : ""}`}>
                 <div className="arret-tete">
                   <span className="num" style={{ fontWeight: 600 }}>{hhmm(a.arrivee_min)}</span>
                   <span style={{ flex: 1 }}><strong>{a.client || a.reference}</strong><br /><span className="muted">{a.adresse}</span></span>
@@ -213,6 +217,7 @@ export default function MaTournee({ params }: { params: Promise<{ token: string 
                   </div>
                 )}
               </li>
+              </Fragment>
             );
           })}
         </ol>

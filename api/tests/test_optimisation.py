@@ -228,3 +228,74 @@ def test_total_driving_of_every_route_respects_each_vehicle_cap():
     s = optimiser(probleme_100_commandes(5))
     for r in s.routes:
         assert r.trajet_s <= 540 * 60 + 1
+
+
+# ---------------------------------------------------------------- Rotations
+
+
+def trois_commandes_de_8_palettes():
+    return [CommandeOpt(i, palettes=8) for i in (1, 2, 3)]
+
+
+def test_one_truck_serves_everything_with_three_rotations_where_one_cannot():
+    veh = [VehiculeOpt(1, "A", palettes=10)]  # 8 palettes par commande : une seule commande par rotation
+    seule = optimiser(pb(trois_commandes_de_8_palettes(), veh, positions=[10, 10, 10], rotations_max=1))
+    assert len(servies(seule)) == 1 and len(seule.non_affectees) == 2
+    s = optimiser(pb(trois_commandes_de_8_palettes(), veh, positions=[10, 10, 10], rotations_max=3))
+    assert servies(s) == [1, 2, 3] and s.non_affectees == []
+    (route,) = s.routes
+    assert [a.rotation for a in route.arrets] == [1, 2, 3]
+
+
+def test_rotations_are_capped_by_the_setting():
+    s = optimiser(pb(trois_commandes_de_8_palettes(), [VehiculeOpt(1, "A", palettes=10)], positions=[10, 10, 10], rotations_max=2))
+    assert len(servies(s)) == 2 and len(s.non_affectees) == 1
+
+
+def test_next_rotation_starts_after_return_and_loading():
+    s = optimiser(pb(trois_commandes_de_8_palettes()[:2], [VehiculeOpt(1, "A", palettes=10)], positions=[10, 10], rotations_max=2, rechargement_min=45))
+    a, b = s.routes[0].arrets
+    assert (a.rotation, b.rotation) == (1, 2)
+    # fin de service de la 1re commande + 10 min de retour + 45 min de chargement + 10 min d'aller = arrivée minimale à la 2e
+    assert b.arrivee_min >= a.depart_min + 10 + 45 + 10 - 1e-6
+
+
+def test_longer_loading_time_pushes_the_second_rotation_later():
+    court = optimiser(pb(trois_commandes_de_8_palettes()[:2], [VehiculeOpt(1, "A", palettes=10)], positions=[10, 10], rotations_max=2, rechargement_min=30))
+    long = optimiser(pb(trois_commandes_de_8_palettes()[:2], [VehiculeOpt(1, "A", palettes=10)], positions=[10, 10], rotations_max=2, rechargement_min=120))
+    assert long.routes[0].retour_min - court.routes[0].retour_min >= 90 - 1e-6
+
+
+def test_daily_driving_limit_is_shared_by_all_rotations_of_a_truck():
+    # aller-retour de 40 min par commande : deux rotations = 80 min, trois = 120 min > 100 min de conduite autorisée
+    veh = [VehiculeOpt(1, "A", palettes=10, conduite_max_min=100)]
+    s = optimiser(pb(trois_commandes_de_8_palettes(), veh, positions=[20, 20, 20], rotations_max=3, pauses=False))
+    assert len(servies(s)) == 2 and len(s.non_affectees) == 1
+
+
+def test_closing_time_limits_the_number_of_rotations():
+    s = optimiser(pb(trois_commandes_de_8_palettes(), [VehiculeOpt(1, "A", palettes=10)], positions=[10, 10, 10], rotations_max=3,
+                     ouverture_min=6 * 60, fermeture_min=6 * 60 + 150))
+    # 1re rotation : 35 min ; chargement 45 ; 2e rotation : 35 min -> 115 min ; une 3e dépasserait 150 min
+    assert len(servies(s)) == 2
+
+
+def test_two_trucks_use_rotations_independently():
+    cmds = [CommandeOpt(i, palettes=8) for i in range(1, 5)]
+    vehs = [VehiculeOpt(1, "A", palettes=10), VehiculeOpt(2, "A", palettes=10)]
+    s = optimiser(pb(cmds, vehs, positions=[10, 10, 10, 10], rotations_max=2))
+    assert servies(s) == [1, 2, 3, 4] and sorted(len({a.rotation for a in r.arrets}) for r in s.routes) == [2, 2]
+
+
+def test_reason_explains_that_no_truck_can_leave_again():
+    # 3 x 8 palettes pour un camion de 10 et un dépôt qui ferme tôt : la 3e commande reste de côté, faute de camion qui puisse repartir
+    s = optimiser(pb(trois_commandes_de_8_palettes(), [VehiculeOpt(1, "A", palettes=10)], positions=[10, 10, 10], rotations_max=3,
+                     ouverture_min=6 * 60, fermeture_min=6 * 60 + 150))
+    assert len(s.non_affectees) == 1 and "Aucun camion ne peut repartir" in raisons(s)[s.non_affectees[0][0]]
+
+
+def test_a_single_rotation_gives_the_same_result_as_before():
+    cmds = [CommandeOpt(i, poids_kg=100) for i in range(1, 6)]
+    avant = optimiser(pb(cmds))
+    apres = optimiser(pb(cmds, rotations_max=1))
+    assert [(a.commande_id, a.rotation) for a in apres.routes[0].arrets] == [(a.commande_id, 1) for a in avant.routes[0].arrets]

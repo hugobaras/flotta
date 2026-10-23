@@ -48,6 +48,7 @@ class Contexte:
     noms_conducteurs: dict[int, str] = field(default_factory=dict)
     minuit: float = 0.0  # échelle de `regulations` du minuit du jour du plan (pour comparer avec les compteurs)
     positions: dict[int, tuple[float, float]] = field(default_factory=dict)  # ligne des matrices -> (lat, lng) ; 0 = dépôt
+    rechargement_min: int = 45  # temps au dépôt entre deux rotations d'un même camion
 
 
 @dataclass
@@ -65,6 +66,18 @@ class ArretCalcule:
     arrivee_min: float
     depart_min: float
     attente_min: float
+    rotation: int = 1
+
+
+@dataclass
+class RotationCalculee:
+    numero: int
+    depart_min: float  # sortie du dépôt
+    retour_min: float  # retour au dépôt (avant rechargement)
+    charge_kg: int
+    charge_palettes: int
+    charge_m3: float
+    nb_arrets: int
 
 
 @dataclass
@@ -84,6 +97,7 @@ class RouteCalculee:
     plafond_conduite_min: float = 540.0  # limite appliquée à cette tournée
     conducteur_id: int | None = None
     activites: list = field(default_factory=list)  # activités datées (conduite, pauses, services) : sert à relire l'état du conducteur à un instant
+    rotations: list[RotationCalculee] = field(default_factory=list)
 
 
 def hhmm(minutes: float) -> str:
@@ -96,25 +110,63 @@ def duree_txt(minutes: float) -> str:
     return f"{m // 60} h {m % 60:02d}" if m >= 60 else f"{m} min"
 
 
-def _parcours(ctx: Contexte, cmds: list[CommandeInfo], lignes: list[int], dur, debut: float, chrono: "reg.Chrono"):
-    """Parcourt la tournée à partir de `debut` (minutes) : trajets avec pauses obligatoires, attentes de fenêtre, services."""
-    p = reg.demarrer(debut, chrono)
-    arrets, attentes = [], []
-    for k, c in enumerate(cmds, start=1):
-        reg.conduire(p, dur[lignes[k - 1]][lignes[k]] / 60)
+def normaliser_rotations(rotations: list[int] | None, n: int) -> list[int]:
+    """Numéros de rotation par arrêt : croissants et sans trou (1, 2, 3...). Par défaut, tout est en rotation 1."""
+    if not rotations:
+        return [1] * n
+    suite = [max(1, int(r)) for r in rotations[:n]] + [max(1, int(rotations[-1]))] * (n - len(rotations))
+    for i in range(1, n):
+        suite[i] = max(suite[i], suite[i - 1])
+    rang, sortie = {}, []
+    for r in suite:
+        rang.setdefault(r, len(rang) + 1)
+        sortie.append(rang[r])
+    return sortie
+
+
+def _chemin(lignes: list[int], rotations: list[int]) -> list[int]:
+    """Lignes des matrices dans l'ordre de passage, avec un retour au dépôt (0) entre deux rotations et à la fin."""
+    chemin = [0]
+    for k, ligne in enumerate(lignes):
+        if k and rotations[k] != rotations[k - 1]:
+            chemin.append(0)
+        chemin.append(ligne)
+    return chemin + [0]
+
+
+def _parcours(ctx: Contexte, cmds: list[CommandeInfo], lignes: list[int], rotations: list[int], dur, debut: float, chrono: "reg.Chrono",
+              delais: dict[int, float] | None = None):
+    """Parcourt la tournée à partir de `debut` (minutes) : trajets avec pauses obligatoires, attentes de fenêtre, services.
+    Entre deux rotations : retour au dépôt, rechargement (compté comme autre tâche, jamais comme une pause), nouveau départ.
+    `delais` : minutes d'attente supplémentaire au dépôt avant de partir, par rotation (la 1re s'ajoute à `debut`)."""
+    delais = delais or {}
+    p = reg.demarrer(debut + delais.get(rotations[0], 0.0), chrono)
+    arrets, passages_depot = [], []  # passages_depot : (rotation terminée, retour, sortie)
+    prec = 0
+    for k, c in enumerate(cmds):
+        if k and rotations[k] != rotations[k - 1]:
+            reg.conduire(p, dur[prec][0] / 60)
+            retour = p.t
+            reg.travailler(p, ctx.rechargement_min)
+            if delais.get(rotations[k]):
+                reg.attendre(p, delais[rotations[k]])
+            passages_depot.append((rotations[k - 1], retour, p.t))
+            prec = 0
+        reg.conduire(p, dur[prec][lignes[k]] / 60)
         attente = 0.0
         if c.debut_min is not None and p.t < c.debut_min:
             attente = c.debut_min - p.t
             reg.attendre(p, attente)
         arrivee = p.t
         reg.travailler(p, c.service_min)
-        arrets.append(ArretCalcule(c.id, arrivee, p.t, attente))
-        attentes.append(attente)
-    reg.conduire(p, dur[lignes[-1]][0] / 60)
-    return p, arrets
+        arrets.append(ArretCalcule(c.id, arrivee, p.t, attente, rotations[k]))
+        prec = lignes[k]
+    reg.conduire(p, dur[prec][0] / 60)
+    return p, arrets, passages_depot
 
 
-def calculer_route(ctx: Contexte, vehicule_id: int, commande_ids: list[int], conducteur_id: int | None = None) -> RouteCalculee:
+def calculer_route(ctx: Contexte, vehicule_id: int, commande_ids: list[int], conducteur_id: int | None = None,
+                   rotations: list[int] | None = None) -> RouteCalculee:
     v = ctx.vehicules[vehicule_id]
     cmds = [ctx.commandes[c] for c in commande_ids]
     restant = ctx.compteurs.get(conducteur_id) if conducteur_id is not None else None
@@ -122,7 +174,8 @@ def calculer_route(ctx: Contexte, vehicule_id: int, commande_ids: list[int], con
     if not cmds:
         return RouteCalculee(vehicule_id, ctx.ouverture_min, ctx.ouverture_min, 0, 0.0, 0, 0, 0.0, plafond_conduite_min=plafond, conducteur_id=conducteur_id)
     dur, dist = ctx.durees[v.profil], ctx.distances[v.profil]
-    lignes = [0] + [ctx.ligne[c.id] for c in cmds]
+    lignes = [ctx.ligne[c.id] for c in cmds]
+    rotations = normaliser_rotations(rotations, len(cmds))
 
     def chrono():
         if not restant:
@@ -132,13 +185,28 @@ def calculer_route(ctx: Contexte, vehicule_id: int, commande_ids: list[int], con
     debut = float(ctx.ouverture_min)
     if restant:  # repos journalier à respecter avant de reprendre
         debut = max(debut, restant.debut_possible - ctx.minuit)
-    p, arrets = _parcours(ctx, cmds, lignes, dur, debut, chrono())
-    if arrets[0].attente_min > 0:  # départ retardé pour supprimer l'attente avant le premier arrêt (le reste de la journée ne change pas)
-        debut += arrets[0].attente_min
-        p, arrets = _parcours(ctx, cmds, lignes, dur, debut, chrono())
+    # Départ retardé pour ne pas attendre devant un client : on retarde la sortie du dépôt de la rotation concernée (la 1re : le départ du
+    # camion) de la durée de l'attente, sans jamais faire fermer la fenêtre d'un arrêt qui précède. Le reste de la journée ne change pas.
+    delais: dict[int, float] = {}
+    p, arrets, depot = _parcours(ctx, cmds, lignes, rotations, dur, debut, chrono(), delais)
+    for _ in range(len(cmds) + 1):
+        for k, a in enumerate(arrets):
+            if a.attente_min <= 1e-6:
+                continue
+            marge = min((cmds[j].fin_min - arrets[j].arrivee_min for j in range(k) if rotations[j] == rotations[k] and cmds[j].fin_min is not None),
+                        default=float("inf"))
+            decalage = min(a.attente_min, marge)
+            if decalage > 1e-6:
+                delais[rotations[k]] = delais.get(rotations[k], 0.0) + decalage
+                p, arrets, depot = _parcours(ctx, cmds, lignes, rotations, dur, debut, chrono(), delais)
+                break
+        else:
+            break
+    debut += delais.get(rotations[0], 0.0)
     alertes: list[Alerte] = []
-    trajet = sum(dur[lignes[k]][lignes[k + 1]] for k in range(len(lignes) - 1)) + dur[lignes[-1]][0]
-    km = sum(dist[lignes[k]][lignes[k + 1]] for k in range(len(lignes) - 1)) + dist[lignes[-1]][0]
+    chemin = _chemin(lignes, rotations)
+    trajet = sum(dur[a][b] for a, b in zip(chemin, chemin[1:]))
+    km = sum(dist[a][b] for a, b in zip(chemin, chemin[1:]))
     for a, c in zip(arrets, cmds):
         if c.fin_min is not None and a.arrivee_min > c.fin_min + 1e-6:
             alertes.append(Alerte("retard", f"{c.reference} : arrivée à {hhmm(a.arrivee_min)}, fenêtre close à {hhmm(c.fin_min)} (retard de {duree_txt(a.arrivee_min - c.fin_min)})", vehicule_id, c.id))
@@ -146,13 +214,24 @@ def calculer_route(ctx: Contexte, vehicule_id: int, commande_ids: list[int], con
             besoin = " et ".join(n for n, on in (("frigo", c.frigo and not v.frigo), ("ADR", c.adr and not v.adr)) if on)
             alertes.append(Alerte("incompatible", f"{c.reference} exige {besoin}, absent de {v.plaque}", vehicule_id, c.id))
     retour, depart = p.t, debut
+    # Une ligne par rotation : sortie et retour du dépôt, charge transportée.
+    sorties = {1: depart, **{r + 1: sortie for r, _, sortie in depot}}
+    retours = {**{r: ret for r, ret, _ in depot}, rotations[-1]: retour}
+    rots = []
+    for n in sorted(set(rotations)):
+        idx = [i for i, r in enumerate(rotations) if r == n]
+        rots.append(RotationCalculee(n, sorties[n], retours[n], sum(cmds[i].poids_kg for i in idx), sum(cmds[i].palettes for i in idx),
+                                     round(sum(cmds[i].volume_m3 for i in idx), 2), len(idx)))
     charge_kg, charge_pal, charge_m3 = sum(c.poids_kg for c in cmds), sum(c.palettes for c in cmds), sum(c.volume_m3 for c in cmds)
-    for nom, charge, cap, unite in (("poids", charge_kg, v.capacite_kg, "kg"), ("palettes", charge_pal, v.palettes, "palettes"),
-                                    ("volume", charge_m3, v.capacite_m3, "m³")):
-        if cap is not None and charge > cap + 1e-9:
-            alertes.append(Alerte("surcharge", f"{v.plaque} en surcharge ({nom}) : {round(charge, 1):g} {unite} pour {cap:g} {unite}", vehicule_id))
-    if retour - depart > ctx.duree_max_min + 1e-6:
-        alertes.append(Alerte("duree", f"{v.plaque} : tournée de {duree_txt(retour - depart)}, maximum {duree_txt(ctx.duree_max_min)}", vehicule_id))
+    multi = len(rots) > 1
+    for rot in rots:
+        suffixe = f" (rotation {rot.numero})" if multi else ""
+        for nom, charge, cap, unite in (("poids", rot.charge_kg, v.capacite_kg, "kg"), ("palettes", rot.charge_palettes, v.palettes, "palettes"),
+                                        ("volume", rot.charge_m3, v.capacite_m3, "m³")):
+            if cap is not None and charge > cap + 1e-9:
+                alertes.append(Alerte("surcharge", f"{v.plaque} en surcharge ({nom}){suffixe} : {round(charge, 1):g} {unite} pour {cap:g} {unite}", vehicule_id))
+        if rot.retour_min - rot.depart_min > ctx.duree_max_min + 1e-6:
+            alertes.append(Alerte("duree", f"{v.plaque} : tournée{suffixe} de {duree_txt(rot.retour_min - rot.depart_min)}, maximum {duree_txt(ctx.duree_max_min)}", vehicule_id))
     if retour > ctx.fermeture_min + 1e-6:
         alertes.append(Alerte("fermeture", f"{v.plaque} : retour au dépôt à {hhmm(retour)}, après la fermeture ({hhmm(ctx.fermeture_min)})", vehicule_id))
     # Règlement CE 561/2006 : conduite journalière et hebdomadaire (les pauses de 4 h 30 sont insérées, donc jamais en défaut ici)
@@ -168,7 +247,7 @@ def calculer_route(ctx: Contexte, vehicule_id: int, commande_ids: list[int], con
         alertes.append(Alerte("conduite_semaine", f"{v.plaque} : dépasse le temps de conduite hebdomadaire restant{qui} ({duree_txt(restant.conduite_semaine)})", vehicule_id, gravite="infraction"))
     return RouteCalculee(vehicule_id, depart, retour, int(trajet), round(km, 1), charge_kg, charge_pal, round(charge_m3, 2), arrets, alertes,
                          pauses=list(p.pauses), conduite_min=round(conduite, 1), plafond_conduite_min=plafond, conducteur_id=conducteur_id,
-                         activites=list(p.activites))
+                         activites=list(p.activites), rotations=rots)
 
 
 def indicateurs(routes: list[RouteCalculee], nb_non_affectees: int, capacite_totale_kg: int | None) -> dict:
@@ -176,7 +255,7 @@ def indicateurs(routes: list[RouteCalculee], nb_non_affectees: int, capacite_tot
     charge = sum(r.charge_kg for r in utilisees)
     return {"km": round(sum(r.distance_km for r in utilisees), 1),
             "duree_min": round(sum(r.retour_min - r.depart_min for r in utilisees)),
-            "nb_tournees": len(utilisees),
+            "nb_tournees": len(utilisees), "nb_rotations": sum(max(1, len(r.rotations)) for r in utilisees),
             "remplissage_pct": round(100 * charge / capacite_totale_kg) if capacite_totale_kg and utilisees else None,
             "nb_alertes": sum(len(r.alertes) for r in routes), "nb_non_affectees": nb_non_affectees,
             "nb_infractions": sum(1 for r in routes for a in r.alertes if a.gravite == "infraction")}
@@ -203,15 +282,25 @@ class Simulation:
 
 
 def simuler_depuis(ctx: Contexte, vehicule_id: int, restants: list[int], depuis_ligne: int, depuis_min: float,
-                   chrono: "reg.Chrono | None" = None, ajustement=None) -> Simulation:
-    """Simule la fin de tournée depuis la position et l'heure réelles. `ajustement(i, j)` peut renvoyer une durée (min) observée en direct."""
+                   chrono: "reg.Chrono | None" = None, ajustement=None, rotations: list[int] | None = None,
+                   rotation_depuis: int | None = None) -> Simulation:
+    """Simule la fin de tournée depuis la position et l'heure réelles. `ajustement(i, j)` peut renvoyer une durée (min) observée en direct.
+    `rotations` : rotation de chaque arrêt restant ; quand elle change (y compris depuis `rotation_depuis`, celle de la position actuelle),
+    le camion repasse par le dépôt et recharge."""
     v = ctx.vehicules[vehicule_id]
     dur, dist = ctx.durees[v.profil], ctx.distances[v.profil]
     cmds = [ctx.commandes[c] for c in restants]
     p = reg.demarrer(depuis_min, chrono or reg.Chrono())
     arrets, retards, km, prec = [], [], 0.0, depuis_ligne
-    for c in cmds:
+    for k, c in enumerate(cmds):
         ligne = ctx.ligne[c.id]
+        avant = rotation_depuis if k == 0 else (rotations[k - 1] if rotations else None)
+        if rotations and avant is not None and rotations[k] != avant and prec != 0:  # fin de rotation : retour au dépôt, rechargement
+            trajet = ajustement(prec, 0) if ajustement else None
+            reg.conduire(p, trajet if trajet is not None else dur[prec][0] / 60)
+            km += dist[prec][0]
+            reg.travailler(p, ctx.rechargement_min)
+            prec = 0
         trajet = ajustement(prec, ligne) if ajustement else None
         reg.conduire(p, (trajet if trajet is not None else dur[prec][ligne] / 60))
         km += dist[prec][ligne]

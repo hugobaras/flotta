@@ -28,7 +28,9 @@ class PlanIn(BaseModel):
     depot_id: int | None = None
     affectations: dict[int, int] | None = None  # véhicule -> conducteur ; sinon le conducteur habituel du véhicule
     temps_max_s: int = Field(default=10, ge=1, le=120)  # temps de calcul maximal
-    duree_max_min: int = Field(default=600, ge=60, le=900)  # durée maximale d'une tournée
+    duree_max_min: int = Field(default=600, ge=60, le=900)  # durée maximale d'une rotation
+    rotations_max: int = Field(default=3, ge=1, le=3)  # sorties du dépôt par camion et par jour ; 1 = une seule tournée
+    rechargement_min: int = Field(default=45, ge=15, le=240)  # temps au dépôt entre deux rotations
 
 
 def _plan(db: Session, user: User, plan_id: int) -> Plan:
@@ -63,7 +65,7 @@ def creer(body: PlanIn, user: User = Depends(current_user), db: Session = Depend
 def lister(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(Plan).where(Plan.company_id == user.company_id).order_by(Plan.id.desc()).limit(50))
     return [{"id": p.id, "jour": p.jour, "statut": p.statut, "progression": p.progression, "resume": p.resume,
-             "created_at": p.created_at, "publie_le": p.publie_le} for p in rows]
+             "created_at": p.created_at, "publie_le": p.publie_le, "archive": p.archive_le is not None, "nom": p.nom} for p in rows]
 
 
 @router.get("/{plan_id}")
@@ -111,12 +113,13 @@ class Deplacement(BaseModel):
     order_id: int
     vehicle_id: int | None = None  # None : devient non affectée
     position: int | None = Field(default=None, ge=0)
+    rotation: int | None = Field(default=None, ge=1, le=3)  # rotation visée ; sinon celle du voisin
 
 
 @router.post("/{plan_id}/deplacer")
 def deplacer(plan_id: int, body: Deplacement, user: User = Depends(current_user), db: Session = Depends(get_db)):
     p = _plan(db, user, plan_id)
-    return _appliquer(db, p, lambda: plans.deplacer(db, p, body.order_id, body.vehicle_id, body.position))
+    return _appliquer(db, p, lambda: plans.deplacer(db, p, body.order_id, body.vehicle_id, body.position, body.rotation))
 
 
 class Verrou(BaseModel):

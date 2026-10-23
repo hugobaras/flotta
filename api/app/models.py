@@ -314,6 +314,7 @@ class Plan(Base):
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"))  # plan dont cette version est copiée
     curseur: Mapped[int] = mapped_column(default=0, server_default="0")  # position dans l'historique des modifications
     publie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # tournées visibles par les chauffeurs
+    archive_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # ancien calcul remplacé par un plus récent (jamais supprimé)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -347,6 +348,8 @@ class RouteStop(Base):
     depart_min: Mapped[float] = mapped_column(Float)
     attente_min: Mapped[float] = mapped_column(Float, default=0)
     verrouille: Mapped[bool] = mapped_column(default=False, server_default=false())
+    # Rotation du camion (1, 2, 3) : entre deux rotations il revient au dépôt et recharge.
+    rotation: Mapped[int] = mapped_column(default=1, server_default="1")
 
 
 class PlanSnapshot(Base):

@@ -140,7 +140,7 @@ def test_capacity_forces_several_trucks_and_leftovers_are_explained(a, client, c
     camion(a, "BB-100-BB", capacite_kg=500)
     depot(a)
     ajouter_commandes(client, 1, 7)  # 7 x 200 kg = 1400 kg pour 1000 kg de capacité
-    pid = lancer(a)
+    pid = lancer(a, rotations_max=1)  # une seule sortie par camion : c'est la capacité d'une tournée qui est testée ici
     executer(client, pid)
     d = a.get(f"/api/admin/plans/{pid}").json()
     assert len(d["routes"]) == 2 and all(r["charge_kg"] <= 500 for r in d["routes"])
@@ -243,3 +243,132 @@ def test_delete_plan_removes_its_routes_and_stops(a, client, calcul):
 def test_plan_routes_require_login(client):
     for method, url in [("get", "/api/admin/plans"), ("post", "/api/admin/plans"), ("get", "/api/admin/plans/1"), ("delete", "/api/admin/plans/1")]:
         assert getattr(client, method)(url).status_code == 401
+
+
+# ---------------------------------------------------------------- Rotations
+
+
+def commandes_de_8_palettes(client, n=3):
+    with client.Session() as db:
+        for i in range(n):
+            db.add(Order(company_id=1, reference=f"R{i}", adresse=f"{i} rue Test", lat=47.22 + i * 0.01, lng=-1.55, geo_statut="ok", poids_kg=800,
+                         palettes=8, volume_m3=10, date_livraison=date(2026, 11, 2)))
+        db.commit()
+
+
+def test_plan_uses_rotations_when_one_trip_cannot_carry_everything(a, client, calcul):
+    camion(a, "AA-100-AA", palettes=10)
+    depot(a)
+    commandes_de_8_palettes(client)
+    seul = lancer(a, rotations_max=1)
+    executer(client, seul)
+    assert len(a.get(f"/api/admin/plans/{seul}").json()["non_affectees"]) == 2
+    pid = lancer(a)  # 3 rotations par défaut
+    executer(client, pid)
+    d = a.get(f"/api/admin/plans/{pid}").json()
+    assert d["non_affectees"] == [] and d["alertes"] == []
+    (r,) = d["routes"]
+    assert [x["rotation"] for x in r["arrets"]] == [1, 2, 3]
+    assert [(x["numero"], x["charge_palettes"]) for x in r["rotations"]] == [(1, 8), (2, 8), (3, 8)]
+    sorties = [x["depart_min"] for x in r["rotations"]]
+    retours = [x["retour_min"] for x in r["rotations"]]
+    assert all(sorties[i + 1] >= retours[i] + 45 - 1e-6 for i in range(2))  # rechargement de 45 min respecté dans le plan enregistré
+    assert d["resume"]["nb_rotations"] == 3 and d["resume"]["nb_tournees"] == 1
+
+
+def test_loading_time_and_rotation_count_are_validated(a):
+    assert a.post("/api/admin/plans", json={"jour": JOUR, "rotations_max": 4}).status_code == 422
+    assert a.post("/api/admin/plans", json={"jour": JOUR, "rechargement_min": 5}).status_code == 422
+
+
+def test_rotations_survive_undo_redo_and_old_snapshots_default_to_one_rotation(a, client, calcul):
+    camion(a, "AA-100-AA", palettes=10)
+    depot(a)
+    commandes_de_8_palettes(client)
+    pid = lancer(a)
+    executer(client, pid)
+    avant = a.get(f"/api/admin/plans/{pid}").json()["routes"][0]["arrets"]
+    with client.Session() as db:
+        plan = db.get(Plan, pid)
+        etat = plans.charger_etat(db, plan)
+        for r in etat["routes"]:
+            for ar in r["arrets"]:
+                ar.pop("rotation")  # un instantané antérieur aux rotations
+        plans.ecrire_etat(db, plan, etat)
+        db.commit()
+    apres = a.get(f"/api/admin/plans/{pid}").json()
+    assert {x["rotation"] for x in apres["routes"][0]["arrets"]} == {1} and len(avant) == len(apres["routes"][0]["arrets"]) == 3
+    assert [x["type"] for x in apres["alertes"]] == ["surcharge"]  # 24 palettes dans un camion de 10 : la surcharge est signalée
+
+
+# ---------------------------------------------------------------- Archivage des anciens calculs
+
+
+def _statuts(c):
+    return {p["id"]: p["archive"] for p in c.get("/api/admin/plans").json()}
+
+
+def _preparer(a, client):
+    camion(a, "AA-100-AA")
+    depot(a)
+    ajouter_commandes(client, 1, 4)
+
+
+def test_a_new_successful_plan_archives_the_previous_ones_of_the_same_day(a, client, calcul):
+    _preparer(a, client)
+    p1 = lancer(a)
+    executer(client, p1)
+    assert _statuts(a) == {p1: False}
+    p2 = lancer(a)
+    assert _statuts(a)[p1] is False  # tant que le nouveau calcul n'a pas réussi, l'ancien reste en place
+    executer(client, p2)
+    assert _statuts(a) == {p1: True, p2: False}
+    d = a.get(f"/api/admin/plans/{p2}").json()
+    assert d["archive"] is False and {v["id"]: v["archive"] for v in d["versions"]} == {p1: True, p2: False}
+
+
+def test_published_plans_and_named_versions_are_never_archived(a, client, calcul):
+    _preparer(a, client)
+    p1, p2 = lancer(a), lancer(a)
+    executer(client, p1)
+    executer(client, p2)  # p1 archivé
+    version = a.post(f"/api/admin/plans/{p2}/versions", json={"nom": "Ma version"}).json()["id"]
+    assert a.post(f"/api/admin/plans/{p2}/publier").status_code == 200
+    p3 = lancer(a)
+    executer(client, p3)
+    assert _statuts(a) == {p1: True, p2: False, version: False, p3: False}  # p2 est publié, la version est nommée
+
+
+def test_a_failed_calculation_archives_nothing(a, client, calcul):
+    _preparer(a, client)
+    p1 = lancer(a)
+    executer(client, p1)
+    calcul.panne_routage = True
+    p2 = lancer(a)
+    executer(client, p2)
+    assert a.get(f"/api/admin/plans/{p2}").json()["statut"] == "echec" and _statuts(a)[p1] is False
+
+
+def test_archiving_is_limited_to_the_same_day_and_company(a, b, client, calcul):
+    _preparer(a, client)
+    camion(b, "BB-100-BB")
+    depot(b)
+    ajouter_commandes(client, 2, 3)
+    pa, pb = lancer(a), lancer(b)
+    executer(client, pa)
+    executer(client, pb)
+    autre_jour = a.post("/api/admin/plans", json={"jour": "2026-11-03", "temps_max_s": 2}).json()["id"]
+    pa2 = lancer(a)
+    executer(client, pa2)
+    assert _statuts(a)[pa] is True and _statuts(b) == {pb: False}  # B n'est pas touchée par le nouveau plan d'A
+    with client.Session() as db:
+        assert db.get(Plan, autre_jour).archive_le is None
+
+
+def test_reoptimising_does_not_archive_anything(a, client, calcul):
+    _preparer(a, client)
+    p1 = lancer(a)
+    executer(client, p1)
+    assert a.post(f"/api/admin/plans/{p1}/reoptimiser").status_code in (200, 202)
+    executer(client, p1)
+    assert _statuts(a) == {p1: False}
