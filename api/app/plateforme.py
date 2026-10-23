@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import offres
+from .audit import journaliser
 from .auth import current_user
 from .checklists import create_default_template
 from .db import get_db
@@ -74,7 +75,7 @@ def creer_societe(body: SocieteIn, _: User = Depends(operateur), db: Session = D
 
 
 @router.patch("/societes/{company_id}/abonnement")
-def modifier_abonnement(company_id: int, body: AbonnementPatch, _: User = Depends(operateur), db: Session = Depends(get_db)):
+def modifier_abonnement(company_id: int, body: AbonnementPatch, user: User = Depends(operateur), db: Session = Depends(get_db)):
     c = db.get(Company, company_id)
     if not c:
         raise HTTPException(404, "Société inconnue")
@@ -85,6 +86,7 @@ def modifier_abonnement(company_id: int, body: AbonnementPatch, _: User = Depend
     for k, v in body.model_dump(exclude_unset=True).items():
         if v is not None:
             setattr(s, k, v)
+    journaliser(db, user, "changement_abonnement", f"{c.nom} : {s.offre}, {s.camions_factures} camions, {s.statut}", company_id=c.id)
     db.commit()
     return _ligne(db, c, s)
 

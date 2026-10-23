@@ -9,6 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from . import securite
+from .audit import router as audit_router
+from .rgpd import router as rgpd_router
+from .securite import configurer_journaux
 from .auth import current_user, router as auth_router
 from . import photos
 from .checklist_routes import router as checklist_router
@@ -59,6 +63,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Transport SaaS", lifespan=lifespan)
+configurer_journaux()
+securite.installer(app)
 app.include_router(auth_router)
 app.include_router(checklist_router)
 app.include_router(exploitation_router)
@@ -72,6 +78,8 @@ app.include_router(api_publique_router)
 app.include_router(integrations_router)
 installer_docs(app)
 app.include_router(plateforme_router)
+app.include_router(audit_router)
+app.include_router(rgpd_router)
 app.include_router(offres_router)
 app.include_router(tournees_admin)
 app.include_router(tournees_chauffeur)
@@ -85,8 +93,15 @@ def vehicle_by_token(token: str, db: Session) -> Vehicle:
 
 
 @app.get("/api/health")
-def health():
-    return {"ok": True}
+def health(response: Response, db: Session = Depends(get_db)):
+    """Sonde pour l'hébergeur et UptimeRobot : 503 si la base ne répond pas."""
+    try:
+        db.execute(select(1))
+    except Exception:
+        log.exception("Santé : base injoignable")
+        response.status_code = 503
+        return {"ok": False, "base": False}
+    return {"ok": True, "base": True}
 
 
 # --- Routes chauffeur : pas de compte, le jeton du QR code fait foi ---

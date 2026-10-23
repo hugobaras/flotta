@@ -58,6 +58,7 @@ export default function Accueil() {
       </main>
       <footer className="pied">
         <Brand />
+        <p className="hint"><a href="/statut">État du service</a></p>
         <p className="hint">Flotta, logiciel pour entreprises de transport routier de marchandises. Les données personnelles (conducteurs, positions) sont traitées selon le RGPD, avec une durée de conservation réglable.</p>
       </footer>
     </div>

@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from . import plans
+from .audit import journaliser
 from .auth import current_user
 from .db import get_db
 from .offres import exige
@@ -78,6 +79,7 @@ def supprimer(plan_id: int, user: User = Depends(current_user), db: Session = De
         for s in db.scalars(select(RouteStop).where(RouteStop.route_id == r.id)):
             db.delete(s)
         db.delete(r)
+    journaliser(db, user, "suppression_plan", f"plan {p.id} du {p.jour}")
     db.delete(p)
     db.commit()
     return Response(status_code=204)

@@ -10,3 +10,5 @@ uploads/
 * [0-9].*
 * [0-9]
 valhalla/custom_files/
+
+public/maplibre/

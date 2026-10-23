@@ -1,0 +1,15 @@
+# HTTPS automatique (Let's Encrypt) pour le domaine DOMAINE défini dans .env.
+{$DOMAINE} {
+	encode zstd gzip
+	# L'API est atteinte via le front (réécriture /api), jamais exposée directement.
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+	header {
+		-Server
+	}
+	log {
+		output stdout
+		format json
+	}
+}
