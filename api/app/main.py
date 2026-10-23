@@ -21,6 +21,7 @@ from .depots import router as depots_router
 from .exploitation import router as exploitation_router
 from .flotte import router as flotte_router
 from .itineraires import router as itineraires_router
+from .plans_api import router as plans_router
 from .models import Alert, Check, CheckPhoto, Company, Driver, User, Vehicle
 from .worker import send_critical_alert
 
@@ -62,6 +63,7 @@ app.include_router(conducteurs_router)
 app.include_router(commandes_router)
 app.include_router(depots_router)
 app.include_router(itineraires_router)
+app.include_router(plans_router)
 
 
 def vehicle_by_token(token: str, db: Session) -> Vehicle:

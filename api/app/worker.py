@@ -86,6 +86,14 @@ def send_reminders_task():
 
 
 @celery.task
+def calculer_plan(plan_id: int):
+    """Optimisation d'un plan de tournées en tâche de fond (jamais dans la requête web)."""
+    from . import plans
+    with SessionLocal() as db:
+        plans.executer(db, plan_id)
+
+
+@celery.task
 def daily_purge():
     with SessionLocal() as db:
         return purge(db)
