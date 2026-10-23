@@ -397,5 +397,6 @@ async def importer(fichier: UploadFile = File(), mapping: str = Form(), date_def
             geo_indisponible = True
     db.commit()
     comptes = {s: sum(1 for o in valides if o.geo_statut == s) for s in ("ok", "douteux", "introuvable", "a_geocoder", "manuel")}
-    return {"crees": crees, "mis_a_jour": misajour, "ignores": sum(1 for r in rapport if r["erreurs"]),
+    return {"premiere_date": min((o.date_livraison for o in valides), default=None),  # l'écran s'y positionne après l'import
+            "crees": crees, "mis_a_jour": misajour, "ignores": sum(1 for r in rapport if r["erreurs"]),
             "geocodage": comptes, "geocodage_indisponible": geo_indisponible, "lignes": _public(rapport)}

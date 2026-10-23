@@ -219,6 +219,7 @@ def test_import_excel_with_date_and_time_cells(a, geo):
     r = a.post("/api/admin/commandes/import", files={"fichier": ("c.xlsx", io.BytesIO(buf.getvalue()), "application/octet-stream")},
                data={"mapping": json.dumps(m)})
     assert r.status_code == 200 and r.json()["crees"] == 1
+    assert r.json()["premiere_date"] == "2026-11-04"  # l'écran se positionne sur ce jour après l'import
     o = a.get("/api/admin/commandes").json()[0]
     assert o["date_livraison"] == "2026-11-04" and o["palettes"] == 6 and o["frigo"] is True
 
