@@ -36,10 +36,32 @@ def test_start_is_delayed_to_remove_waiting_before_first_stop():
     assert r.arrets[0].arrivee_min == 9 * 60 and r.depart_min == 8 * 60 + 30 and r.arrets[0].attente_min == 0
 
 
-def test_waiting_between_stops_is_reported():
+def test_waiting_between_stops_is_absorbed_by_leaving_later():
     ctx = contexte([cmd(1), cmd(2, debut_min=12 * 60)], positions=[10, 20])
+    avant = 6 * 60 + 35  # sans décalage : arrivée à 6 h 35 au 2e arrêt, 325 min d'attente avant 12 h
     r = calculer_route(ctx, 1, [1, 2])
-    assert r.arrets[1].arrivee_min == 12 * 60 and r.arrets[1].attente_min > 0
+    assert r.depart_min == 6 * 60 + (12 * 60 - avant) and r.arrets[1].attente_min == 0 and r.arrets[1].arrivee_min == 12 * 60
+    assert r.retour_min == 12 * 60 + 15 + 20 and r.alertes == []  # le retour au dépôt ne bouge pas : seul le départ est reporté
+
+
+def test_waiting_is_kept_when_an_earlier_window_closes_first():
+    ctx = contexte([cmd(1, fin_min=6 * 60 + 30), cmd(2, debut_min=12 * 60)], positions=[10, 20])
+    r = calculer_route(ctx, 1, [1, 2])
+    # le 1er arrêt (arrivée 6 h 10, fenêtre close à 6 h 30) permet de partir 20 min plus tard, pas davantage
+    assert r.depart_min == 6 * 60 + 20 and r.arrets[0].arrivee_min == 6 * 60 + 30 and r.arrets[1].attente_min == 305 and r.alertes == []
+
+
+def test_waiting_inside_a_later_rotation_delays_its_exit_from_the_depot():
+    ctx = contexte([cmd(1), cmd(2, debut_min=12 * 60)], positions=[10, 20])
+    r = calculer_route(ctx, 1, [1, 2], rotations=[1, 2])
+    assert [(x.numero, x.depart_min) for x in r.rotations] == [(1, 360), (2, 11 * 60 + 40)]  # rechargé à 7 h 20, il attend au dépôt
+    assert r.arrets[1].attente_min == 0 and r.arrets[1].arrivee_min == 12 * 60
+
+
+def test_maximum_duration_is_measured_without_the_waiting_that_leaving_later_removes():
+    ctx = contexte([cmd(1), cmd(2, debut_min=14 * 60)], positions=[10, 10], duree_max=120)
+    r = calculer_route(ctx, 1, [1, 2])
+    assert r.retour_min - r.depart_min < 120 and r.alertes == []  # sans décalage : 8 heures entre le départ et le retour
 
 
 def test_changing_order_changes_the_times_and_distance():

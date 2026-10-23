@@ -299,3 +299,76 @@ def test_rotations_survive_undo_redo_and_old_snapshots_default_to_one_rotation(a
     apres = a.get(f"/api/admin/plans/{pid}").json()
     assert {x["rotation"] for x in apres["routes"][0]["arrets"]} == {1} and len(avant) == len(apres["routes"][0]["arrets"]) == 3
     assert [x["type"] for x in apres["alertes"]] == ["surcharge"]  # 24 palettes dans un camion de 10 : la surcharge est signalée
+
+
+# ---------------------------------------------------------------- Archivage des anciens calculs
+
+
+def _statuts(c):
+    return {p["id"]: p["archive"] for p in c.get("/api/admin/plans").json()}
+
+
+def _preparer(a, client):
+    camion(a, "AA-100-AA")
+    depot(a)
+    ajouter_commandes(client, 1, 4)
+
+
+def test_a_new_successful_plan_archives_the_previous_ones_of_the_same_day(a, client, calcul):
+    _preparer(a, client)
+    p1 = lancer(a)
+    executer(client, p1)
+    assert _statuts(a) == {p1: False}
+    p2 = lancer(a)
+    assert _statuts(a)[p1] is False  # tant que le nouveau calcul n'a pas réussi, l'ancien reste en place
+    executer(client, p2)
+    assert _statuts(a) == {p1: True, p2: False}
+    d = a.get(f"/api/admin/plans/{p2}").json()
+    assert d["archive"] is False and {v["id"]: v["archive"] for v in d["versions"]} == {p1: True, p2: False}
+
+
+def test_published_plans_and_named_versions_are_never_archived(a, client, calcul):
+    _preparer(a, client)
+    p1, p2 = lancer(a), lancer(a)
+    executer(client, p1)
+    executer(client, p2)  # p1 archivé
+    version = a.post(f"/api/admin/plans/{p2}/versions", json={"nom": "Ma version"}).json()["id"]
+    assert a.post(f"/api/admin/plans/{p2}/publier").status_code == 200
+    p3 = lancer(a)
+    executer(client, p3)
+    assert _statuts(a) == {p1: True, p2: False, version: False, p3: False}  # p2 est publié, la version est nommée
+
+
+def test_a_failed_calculation_archives_nothing(a, client, calcul):
+    _preparer(a, client)
+    p1 = lancer(a)
+    executer(client, p1)
+    calcul.panne_routage = True
+    p2 = lancer(a)
+    executer(client, p2)
+    assert a.get(f"/api/admin/plans/{p2}").json()["statut"] == "echec" and _statuts(a)[p1] is False
+
+
+def test_archiving_is_limited_to_the_same_day_and_company(a, b, client, calcul):
+    _preparer(a, client)
+    camion(b, "BB-100-BB")
+    depot(b)
+    ajouter_commandes(client, 2, 3)
+    pa, pb = lancer(a), lancer(b)
+    executer(client, pa)
+    executer(client, pb)
+    autre_jour = a.post("/api/admin/plans", json={"jour": "2026-11-03", "temps_max_s": 2}).json()["id"]
+    pa2 = lancer(a)
+    executer(client, pa2)
+    assert _statuts(a)[pa] is True and _statuts(b) == {pb: False}  # B n'est pas touchée par le nouveau plan d'A
+    with client.Session() as db:
+        assert db.get(Plan, autre_jour).archive_le is None
+
+
+def test_reoptimising_does_not_archive_anything(a, client, calcul):
+    _preparer(a, client)
+    p1 = lancer(a)
+    executer(client, p1)
+    assert a.post(f"/api/admin/plans/{p1}/reoptimiser").status_code in (200, 202)
+    executer(client, p1)
+    assert _statuts(a) == {p1: False}

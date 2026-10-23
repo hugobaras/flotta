@@ -138,3 +138,9 @@ Un camion qui rentre au dépôt peut recharger et repartir (3 sorties au plus, r
 - **Suivi en direct et propositions** : les simulations tiennent compte du retour au dépôt quand l'arrêt suivant est d'une autre rotation.
 - **Hypothèse à confirmer** : le rechargement est compté comme autre tâche, donc il ne remplace jamais une pause du conducteur ; le calcul de pauses reste prudent (une pause est ajoutée dès que 4 h 30 de conduite sont atteintes, même à cheval sur deux rotations). Valeur de 45 min de rechargement : à ajuster avec vos dépôts.
 - Les plans calculés avant cette fonction restent à une seule rotation.
+
+## Attentes absorbées et archivage des anciens calculs
+
+- **Départ retardé** : quand un camion arriverait avant l'ouverture de la fenêtre d'un client, le recalcul retarde son départ (ou, pour une rotation 2 ou 3, sa sortie du dépôt) plutôt que de le faire attendre devant le client, sans jamais faire fermer la fenêtre d'un arrêt qui précède. L'heure de retour ne change pas, mais la durée de tournée (donc l'alerte de durée maximale) ne compte plus cette attente. Les départs prévus sont donc plus tardifs, et « attente » n'apparaît plus que lorsqu'une fenêtre qui ferme plus tôt empêche de décaler.
+- **Archivage** : un calcul réussi (« Optimiser » ou « Recalculer le plan ») archive les anciens calculs du même jour. Ils ne sont pas supprimés : ils restent sous « Anciens calculs » dans le sélecteur du planning et dans `GET /api/admin/plans` (`archive: true`). Les plans **publiés** aux chauffeurs et les **versions nommées** ne sont jamais archivés. Un calcul qui échoue, ou une réoptimisation, n'archive rien. Le tableau de bord ignore les calculs archivés.
+- Les anciens calculs archivés ne sont pas supprimés automatiquement : la suppression se fait à la main (`DELETE /api/admin/plans/{id}`).

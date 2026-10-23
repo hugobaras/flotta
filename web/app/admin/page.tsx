@@ -32,7 +32,7 @@ export default function Admin() {
     if (c.ok && p.ok) {
       const cmds: { statut: string }[] = await c.json();
       // Le plan que suivent les chauffeurs (publié) d'abord, sinon le dernier calculé, sinon le dernier tenté.
-      const du_jour: (NonNullable<Journee["plan"]> & { jour: string; publie_le: string | null })[] = (await p.json()).filter((x: { jour: string }) => x.jour === date);
+      const du_jour: (NonNullable<Journee["plan"]> & { jour: string; publie_le: string | null })[] = (await p.json()).filter((x: { jour: string; archive: boolean }) => x.jour === date && !x.archive);
       const plan = du_jour.find((x) => x.publie_le) ?? du_jour.find((x) => x.statut === "termine") ?? du_jour[0] ?? null;
       setJournee({ commandes: cmds.length, aPlanifier: cmds.filter((x) => x.statut === "a_planifier").length, plan });
     }

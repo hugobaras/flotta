@@ -1,7 +1,9 @@
 """Construction, calcul, modification et lecture des plans de tournées."""
 import logging
 
-from sqlalchemy import delete, select
+from datetime import datetime, timezone
+
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from . import conduite, matrices, optimisation as opt, planning, routage
@@ -138,7 +140,15 @@ def _executer(db: Session, plan: Plan):
     plan.curseur = -1
     pousser(db, plan, etat, "Plan optimisé")
     plan.statut, plan.progression, plan.message = "termine", 100, None
+    archiver_anciens(db, plan)
     db.commit()
+
+
+def archiver_anciens(db: Session, plan: Plan):
+    """Un calcul réussi remplace les calculs précédents du même jour : ils sont archivés (rangés, pas supprimés).
+    Sont protégés : les plans publiés aux chauffeurs et les versions enregistrées sous un nom."""
+    db.execute(update(Plan).where(Plan.company_id == plan.company_id, Plan.jour == plan.jour, Plan.id != plan.id, Plan.statut == "termine",
+                                  Plan.publie_le.is_(None), Plan.nom.is_(None), Plan.archive_le.is_(None)).values(archive_le=datetime.now(timezone.utc)))
 
 
 def _affectations(db: Session, plan: Plan, vehicules: list[Vehicle]) -> dict[int, int]:
@@ -516,5 +526,6 @@ def detail(db: Session, plan: Plan) -> dict:
                              "sur_place": sum(1 for a in arrets if statut(a) == "arrive"),
                              "en_retard": sum(1 for a in arrets if a["retard_min"])}
     autres = db.scalars(select(Plan).where(Plan.company_id == plan.company_id, Plan.jour == plan.jour, Plan.statut == "termine").order_by(Plan.id))
-    out["versions"] = [{"id": p.id, "nom": p.nom, "created_at": p.created_at} for p in autres]
+    out["versions"] = [{"id": p.id, "nom": p.nom, "created_at": p.created_at, "archive": p.archive_le is not None, "publie": p.publie_le is not None} for p in autres]
+    out["archive"] = plan.archive_le is not None
     return out
