@@ -12,9 +12,16 @@ services:
       interval: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+
   api:
     build: ./api
     environment:
+      REDIS_URL: redis://redis:6379/0
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_SENDER: ${BREVO_SENDER:-}
+      APP_URL: ${APP_URL:-http://localhost:3000}
       DATABASE_URL: postgresql+psycopg://transport:${POSTGRES_PASSWORD:-transport-dev}@db/transport
       UPLOAD_DIR: /data/uploads
     volumes:
@@ -24,6 +31,22 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+
+  worker:
+    build: ./api
+    command: celery -A app.worker.celery worker -B -l info
+    environment:
+      DATABASE_URL: postgresql+psycopg://transport:${POSTGRES_PASSWORD:-transport-dev}@db/transport
+      UPLOAD_DIR: /data/uploads
+      REDIS_URL: redis://redis:6379/0
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_SENDER: ${BREVO_SENDER:-}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      - api
+      - redis
 
   web:
     build: ./web

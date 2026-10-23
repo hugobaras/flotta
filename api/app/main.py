@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 
+import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,9 +14,18 @@ from .checklist_routes import router as checklist_router
 from .checklists import active_items, create_default_template
 from .db import SessionLocal, get_db
 from .exploitation import router as exploitation_router
-from .models import Check, CheckPhoto, Company, User, Vehicle
+from .models import Alert, Check, CheckPhoto, Company, User, Vehicle
+from .worker import send_critical_alert
 
 DEMO_TOKEN = "demo"
+log = logging.getLogger(__name__)
+
+
+def enqueue_alert(alert_id: int) -> None:
+    try:
+        send_critical_alert.apply_async(args=[alert_id], retry=False)
+    except Exception:  # Redis indisponible : le chauffeur n'est pas concerné, le worker relancera plus tard
+        log.exception("Alerte %s non mise en file", alert_id)
 
 
 def seed_demo():
@@ -94,7 +104,7 @@ class ControleIn(BaseModel):
 
 
 @app.post("/api/controle/{token}", status_code=201)
-def post_controle(token: str, body: ControleIn, db: Session = Depends(get_db)):
+def post_controle(token: str, body: ControleIn, background: BackgroundTasks, db: Session = Depends(get_db)):
     v = vehicle_by_token(token, db)
     items = {i.id: i for i in _items_or_409(db, v)}
     if sorted(r.id for r in body.reponses) != sorted(items):
@@ -109,9 +119,17 @@ def post_controle(token: str, body: ControleIn, db: Session = Depends(get_db)):
                   reponses=snapshot, defaut_critique=defaut, has_defaut=any(not r["ok"] for r in snapshot),
                   signature=body.signature, lat=body.lat, lng=body.lng)
     db.add(check)
+    alert = None
     if defaut:
         v.bloque = True
+        db.flush()
+        recipients = db.get(Company, v.company_id).alert_emails
+        alert = Alert(company_id=v.company_id, check_id=check.id,
+                      statut="en_attente" if recipients else "sans_destinataire")
+        db.add(alert)
     db.commit()
+    if alert and alert.statut == "en_attente":
+        background.add_task(enqueue_alert, alert.id)  # après la réponse au chauffeur
     return {"id": check.id, "defaut_critique": defaut, "bloque": v.bloque}
 
 

@@ -1,3 +1,4 @@
+import io
 import json
 
 import pytest
@@ -12,69 +13,19 @@ from app.checklists import DEFAULT_ITEMS, create_default_template
 from app.db import Base, get_db
 from app.main import app
 from app.models import Company, User, Vehicle
+from helpers import PNG, SIGNATURE, login, make_admin, paris, reponses, send, upload
 
 
-@pytest.fixture
-def client():
-    engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(engine, expire_on_commit=False)
-    with Session() as db:
-        a = Company(nom="A")
-        b = Company(nom="B")
-        db.add_all([a, b])
-        db.flush()
-        pw = hasher.hash("motdepasse-ok")
-        db.add_all([
-            User(company_id=a.id, email="a@a.fr", password_hash=pw),
-            User(company_id=b.id, email="b@b.fr", password_hash=pw),
-        ])
-        create_default_template(db, a.id)
-        create_default_template(db, b.id)
-        db.add_all([
-            Vehicle(company_id=a.id, plaque="AA-111-AA", token="tok-a"),
-            Vehicle(company_id=a.id, plaque="ZZ-999-ZZ", token="tok-a2"),
-            Vehicle(company_id=b.id, plaque="BB-222-BB", token="tok-b"),
-        ])
-        db.commit()
-
-    def override():
-        with Session() as db:
-            yield db
-
-    app.dependency_overrides[get_db] = override
-    auth._failures.clear()
-    c = TestClient(app)  # sans lifespan : pas de seed sur la vraie base
-    c.Session = Session  # pour les tests qui touchent directement la base
-    yield c
-    app.dependency_overrides.clear()
 
 
-def login(client, email, password="motdepasse-ok"):
-    return client.post("/api/auth/login", json={"email": email, "password": password})
 
 
-@pytest.fixture
-def a(client):
-    assert login(client, "a@a.fr").status_code == 200
-    return client
 
 
-@pytest.fixture
-def b():
-    c = TestClient(app)  # second client, cookies séparés
-    assert login(c, "b@b.fr").status_code == 200
-    return c
 
 
-KEYS = {"pneus": 0, "freins": 1, "feux": 2, "niveaux": 3, "retros": 4, "docs": 5}
 
 
-def reponses(client, token, *ko):
-    """Réponses complètes pour la checklist servie au chauffeur ; `ko` = clés des points en défaut."""
-    items = client.get(f"/api/controle/{token}").json()["checklist"]
-    ko_libelles = {DEFAULT_ITEMS[KEYS[k]][0] for k in ko}
-    return [{"id": i["id"], "ok": i["libelle"] not in ko_libelles} for i in items]
 
 
 def test_driver_sees_checklist_without_account(client):
@@ -116,6 +67,9 @@ ADMIN_ROUTES = [
     ("get", "/api/admin/photos/1"),
     ("get", "/api/admin/deblocages"),
     ("get", "/api/admin/rappels"),
+    ("get", "/api/admin/controles/1/pdf"),
+    ("get", "/api/admin/logo"),
+    ("post", "/api/admin/logo"),
     ("get", "/api/admin/parametres"),
     ("patch", "/api/admin/parametres"),
 ]
@@ -290,20 +244,10 @@ from app.exploitation import sans_controle  # noqa: E402
 from app.models import Check, CheckPhoto  # noqa: E402
 from app.retention import purge  # noqa: E402
 
-PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
-SIGNATURE = "data:image/png;base64,iVBORw0KGgo="
 
 
-def send(c, token, *ko, **extra):
-    r = c.post(f"/api/controle/{token}", json={"conducteur": "Paul Durand", "reponses": reponses(c, token, *ko), **extra})
-    assert r.status_code == 201, r.text
-    return r.json()
 
 
-@pytest.fixture
-def upload_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(photos, "UPLOAD_DIR", tmp_path)
-    return tmp_path
 
 
 def blocked_vehicle(a):
@@ -383,8 +327,6 @@ def test_invalid_signature_or_position_rejected(a, extra):
     assert r.status_code == 422
 
 
-def upload(c, check_id, data=PNG, token="tok-a", name="p.png"):
-    return c.post(f"/api/controle/{token}/{check_id}/photos", files={"photo": (name, io.BytesIO(data), "image/png")})
 
 
 def test_photo_upload_and_download(a, b, upload_dir):
@@ -436,9 +378,6 @@ def test_deblocages_isolation(a, b):
     assert len(b.get("/api/admin/deblocages").json()) == 1
 
 
-def paris(h, m=0):
-    """Instant UTC correspondant à h:m heure de Paris le 15 janvier 2026 (UTC+1)."""
-    return datetime(2026, 1, 15, h - 1, m, tzinfo=timezone.utc)
 
 
 def test_reminder_lists_unchecked_vehicles_after_threshold(a, client):
@@ -456,20 +395,17 @@ def test_reminder_lists_unchecked_vehicles_after_threshold(a, client):
         assert [v.plaque for v in sans_controle(db, company, paris(9))] == ["ZZ-999-ZZ"]
 
 
-def make_admin(client, email):
-    with client.Session() as db:
-        db.query(User).filter_by(email=email).update({"role": "admin"})
-        db.commit()
 
 
 def test_settings_admin_only_and_validated(a, client):
-    assert a.get("/api/admin/parametres").json() == {"heure_rappel": "08:00", "retention_jours": 1095}
+    assert a.get("/api/admin/parametres").json() == {
+        "heure_rappel": "08:00", "retention_jours": 1095, "alert_emails": [], "logo": False}
     assert a.patch("/api/admin/parametres", json={"heure_rappel": "07:30"}).status_code == 403
     make_admin(client, "a@a.fr")
     assert a.patch("/api/admin/parametres", json={"heure_rappel": "25:00"}).status_code == 422
     assert a.patch("/api/admin/parametres", json={"retention_jours": 5}).status_code == 422
     r = a.patch("/api/admin/parametres", json={"heure_rappel": "07:30", "retention_jours": 365})
-    assert r.json() == {"heure_rappel": "07:30", "retention_jours": 365}
+    assert (r.json()["heure_rappel"], r.json()["retention_jours"]) == ("07:30", 365)
 
 
 def test_purge_respects_each_company_retention(a, client, upload_dir):

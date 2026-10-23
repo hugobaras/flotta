@@ -20,3 +20,12 @@ Squelette du module « contrôle avant départ ». Contexte et étapes : `claude
 - Durée de conservation par société : 3 ans par défaut (`retention_jours`, modifiable de 30 à 3650 jours dans Paramètres). Passé ce délai, `python purge.py` supprime les contrôles, les photos (fichiers compris) et les positions. À lancer chaque jour ; la planification automatique (Celery) arrive à l'étape 3B. Le journal des déblocages (qui, quand, pourquoi) n'est pas purgé.
 - Photos : stockées sur disque (`UPLOAD_DIR`, volume Docker `uploads`), JPEG ou PNG vérifiés sur le contenu, 5 Mo et 5 photos maximum par contrôle, ajout possible dans l'heure qui suit le contrôle.
 - Rappel : heure configurable par société (Paramètres), liste des camions sans contrôle affichée sur le tableau de bord.
+
+## Alertes, rappels et PDF
+
+- Services : `redis` et `worker` (Celery avec planificateur intégré) en plus de `api`, `web` et `db`.
+- Brevo (email) : variables `BREVO_API_KEY` et `BREVO_SENDER` (expéditeur validé chez Brevo), `APP_URL` pour le lien dans l'email. Sans clé, l'alerte est enregistrée avec le statut `non_configure` et rien n'est envoyé.
+- Défaut critique : le contrôle est enregistré et le camion bloqué immédiatement ; l'email part en tâche de fond, réessayé après 1, 5, 15 puis 60 minutes (statuts de la table `alerts` : `en_attente`, `envoye`, `echec`, `non_configure`, `sans_destinataire`). Si Redis est indisponible, le chauffeur n'est pas impacté et le worker relance les alertes jamais tentées toutes les 5 minutes.
+- Destinataires : Paramètres, un email par ligne (10 maximum par société). Pas de SMS pour l'instant.
+- Rappel : un email par jour et par société, dès l'heure choisie, avec les camions sans contrôle. La purge RGPD tourne chaque nuit à 3 h (heure de Paris).
+- PDF d'un contrôle : bouton sur la page de détail. Logo de la société : Paramètres (JPEG ou PNG, 1 Mo maximum).
