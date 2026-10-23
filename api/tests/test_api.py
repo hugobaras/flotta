@@ -33,6 +33,7 @@ def client():
         create_default_template(db, b.id)
         db.add_all([
             Vehicle(company_id=a.id, plaque="AA-111-AA", token="tok-a"),
+            Vehicle(company_id=a.id, plaque="ZZ-999-ZZ", token="tok-a2"),
             Vehicle(company_id=b.id, plaque="BB-222-BB", token="tok-b"),
         ])
         db.commit()
@@ -43,7 +44,9 @@ def client():
 
     app.dependency_overrides[get_db] = override
     auth._failures.clear()
-    yield TestClient(app)  # sans lifespan : pas de seed sur la vraie base
+    c = TestClient(app)  # sans lifespan : pas de seed sur la vraie base
+    c.Session = Session  # pour les tests qui touchent directement la base
+    yield c
     app.dependency_overrides.clear()
 
 
@@ -90,7 +93,7 @@ def test_critical_defect_blocks_vehicle_and_unblock(a):
     r = client.post("/api/controle/tok-a", json={"conducteur": "Paul", "reponses": reponses(client, "tok-a", "freins")})
     assert r.status_code == 201 and r.json()["bloque"] is True
     vid = client.get("/api/admin/vehicules").json()[0]["id"]
-    r = client.post(f"/api/admin/vehicules/{vid}/debloquer")
+    r = client.post(f"/api/admin/vehicules/{vid}/debloquer", json={"commentaire": "Freins vérifiés"})
     assert r.json()["bloque"] is False
 
 
@@ -108,6 +111,13 @@ ADMIN_ROUTES = [
     ("get", "/api/admin/vehicules"),
     ("get", "/api/admin/controles"),
     ("post", "/api/admin/vehicules/1/debloquer"),
+    ("get", "/api/admin/tableau"),
+    ("get", "/api/admin/controles/1"),
+    ("get", "/api/admin/photos/1"),
+    ("get", "/api/admin/deblocages"),
+    ("get", "/api/admin/rappels"),
+    ("get", "/api/admin/parametres"),
+    ("patch", "/api/admin/parametres"),
 ]
 
 
@@ -140,11 +150,11 @@ def test_session_cookie_is_httponly(client):
 
 def test_tenant_isolation(a, b):
     b.post("/api/controle/tok-b", json={"conducteur": "Zoé", "reponses": reponses(b, "tok-b", "pneus")})
-    assert [v["plaque"] for v in a.get("/api/admin/vehicules").json()] == ["AA-111-AA"]
+    assert sorted(v["plaque"] for v in a.get("/api/admin/vehicules").json()) == ["AA-111-AA", "ZZ-999-ZZ"]
     assert a.get("/api/admin/controles").json() == []
     b_vehicle = b.get("/api/admin/vehicules").json()[0]
     assert b_vehicle["bloque"] is True
-    assert a.post(f"/api/admin/vehicules/{b_vehicle['id']}/debloquer").status_code == 404
+    assert a.post(f"/api/admin/vehicules/{b_vehicle['id']}/debloquer", json={"commentaire": "intrus"}).status_code == 404
     assert b.get("/api/admin/vehicules").json()[0]["bloque"] is True
     assert len(b.get("/api/admin/controles").json()) == 1
 
@@ -210,7 +220,7 @@ def test_history_is_frozen_after_checklist_change(a):
     a.post("/api/controle/tok-a", json={"conducteur": "P", "reponses": reponses(a, "tok-a", "freins")})
     item = next(i for i in first_template(a)["items"] if i["libelle"].startswith("Freins"))
     a.patch(f"/api/admin/checklists/items/{item['id']}", json={"libelle": "Freins (renommé)", "critique": False})
-    saved = a.get("/api/admin/controles").json()[0]
+    saved = a.get(f"/api/admin/controles/{a.get('/api/admin/controles').json()[0]['id']}").json()
     freins = next(r for r in saved["reponses"] if r["id"] == item["id"])
     assert freins["libelle"].startswith("Freins :") and freins["critique"] is True
     assert saved["defaut_critique"] is True
@@ -262,6 +272,221 @@ def test_migration_keeps_old_checks_readable(tmp_path, monkeypatch):
     with eng.connect() as c:
         reponses_json = c.exec_driver_sql("select reponses from checks").scalar()
         n_items = c.exec_driver_sql("select count(*) from checklist_items where company_id = 1").scalar()
+        has_defaut = c.exec_driver_sql("select has_defaut from checks").scalar()
     old = json.loads(reponses_json)[0]
     assert old["libelle"].startswith("Freins : pédale ferme") and old["critique"] is True and old["ok"] is False
     assert n_items == len(DEFAULT_ITEMS)
+    assert has_defaut == 1  # recalculé pour les anciens contrôles
+
+
+# --- Exploitation : déblocage, tableau de bord, détail, photos, rappel, purge ---
+
+import io  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+from app import photos  # noqa: E402
+from app import main as main_module  # noqa: E402
+from app.exploitation import sans_controle  # noqa: E402
+from app.models import Check, CheckPhoto  # noqa: E402
+from app.retention import purge  # noqa: E402
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+SIGNATURE = "data:image/png;base64,iVBORw0KGgo="
+
+
+def send(c, token, *ko, **extra):
+    r = c.post(f"/api/controle/{token}", json={"conducteur": "Paul Durand", "reponses": reponses(c, token, *ko), **extra})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+@pytest.fixture
+def upload_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(photos, "UPLOAD_DIR", tmp_path)
+    return tmp_path
+
+
+def blocked_vehicle(a):
+    send(a, "tok-a", "freins")
+    return next(v for v in a.get("/api/admin/vehicules").json() if v["token"] == "tok-a")["id"]
+
+
+def test_unblock_requires_comment(a):
+    vid = blocked_vehicle(a)
+    url = f"/api/admin/vehicules/{vid}/debloquer"
+    assert a.post(url, json={}).status_code == 422
+    assert a.post(url, json={"commentaire": "   "}).status_code == 422
+    assert a.get("/api/admin/vehicules").json()[0]["bloque"] is True
+
+
+def test_unblock_is_traced(a):
+    vid = blocked_vehicle(a)
+    assert a.post(f"/api/admin/vehicules/{vid}/debloquer", json={"commentaire": "Plaquettes changées"}).status_code == 200
+    (row,) = a.get("/api/admin/deblocages").json()
+    assert row["plaque"] == "AA-111-AA" and row["par"] == "a@a.fr" and row["commentaire"] == "Plaquettes changées"
+    assert row["created_at"]
+    again = a.post(f"/api/admin/vehicules/{vid}/debloquer", json={"commentaire": "deuxième fois"})
+    assert again.status_code == 409  # pas de déblocage fantôme dans l'historique
+    assert len(a.get("/api/admin/deblocages").json()) == 1
+
+
+def statuts(c, **params):
+    return {v["plaque"]: v["statut"] for v in c.get("/api/admin/tableau", params=params).json()["vehicules"]}
+
+
+def test_dashboard_statuses(a):
+    assert statuts(a) == {"AA-111-AA": "non_controle", "ZZ-999-ZZ": "non_controle"}
+    send(a, "tok-a2")
+    assert statuts(a)["ZZ-999-ZZ"] == "controle"
+    send(a, "tok-a2", "retros")  # défaut mineur : le dernier contrôle du jour l'emporte
+    assert statuts(a)["ZZ-999-ZZ"] == "defaut"
+    send(a, "tok-a", "freins")
+    assert statuts(a)["AA-111-AA"] == "bloque"
+    # un autre jour : pas de contrôle, mais le blocage est un état courant du véhicule
+    assert statuts(a, date="2000-01-01") == {"AA-111-AA": "bloque", "ZZ-999-ZZ": "non_controle"}
+
+
+def test_dashboard_only_own_vehicles(a, b):
+    assert sorted(statuts(b)) == ["BB-222-BB"]
+    assert "BB-222-BB" not in statuts(a)
+
+
+def test_controls_filters(a):
+    send(a, "tok-a")
+    send(a, "tok-a2", "retros")
+    a.post("/api/controle/tok-a2", json={"conducteur": "Zoé Martin", "reponses": reponses(a, "tok-a2")})
+    ids = {v["token"]: v["id"] for v in a.get("/api/admin/vehicules").json()}
+    get = lambda **p: a.get("/api/admin/controles", params=p).json()  # noqa: E731
+    assert len(get()) == 3
+    assert {c["plaque"] for c in get(vehicule_id=ids["tok-a"])} == {"AA-111-AA"}
+    assert [c["conducteur"] for c in get(conducteur="zoé")] == ["Zoé Martin"]
+    assert len(get(conducteur="%")) == 0  # le joker n'est pas interprété
+    assert [c["plaque"] for c in get(defaut=True)] == ["ZZ-999-ZZ"]
+    assert len(get(date="2000-01-01")) == 0
+
+
+def test_check_detail_with_signature_and_position(a):
+    cid = send(a, "tok-a", signature=SIGNATURE, lat=47.2, lng=-1.55)["id"]
+    d = a.get(f"/api/admin/controles/{cid}").json()
+    assert d["plaque"] == "AA-111-AA" and d["signature"] == SIGNATURE
+    assert (d["lat"], d["lng"]) == (47.2, -1.55) and len(d["reponses"]) == len(DEFAULT_ITEMS)
+
+
+@pytest.mark.parametrize("extra", [
+    {"signature": "data:text/html;base64,PHNjcmlwdD4="},
+    {"lat": 47.2},
+    {"lat": 95, "lng": 0},
+    {"lat": 0, "lng": 181},
+])
+def test_invalid_signature_or_position_rejected(a, extra):
+    r = a.post("/api/controle/tok-a", json={"conducteur": "P", "reponses": reponses(a, "tok-a"), **extra})
+    assert r.status_code == 422
+
+
+def upload(c, check_id, data=PNG, token="tok-a", name="p.png"):
+    return c.post(f"/api/controle/{token}/{check_id}/photos", files={"photo": (name, io.BytesIO(data), "image/png")})
+
+
+def test_photo_upload_and_download(a, b, upload_dir):
+    cid = send(a, "tok-a", "pneus")["id"]
+    pid = upload(a, cid).json()["id"]
+    assert a.get(f"/api/admin/controles/{cid}").json()["photos"] == [pid]
+    got = a.get(f"/api/admin/photos/{pid}")
+    assert got.status_code == 200 and got.content == PNG and got.headers["content-type"] == "image/png"
+    assert b.get(f"/api/admin/photos/{pid}").status_code == 404  # autre société
+
+
+def test_photo_rejects_wrong_content_even_with_image_name(a, upload_dir):
+    cid = send(a, "tok-a")["id"]
+    assert upload(a, cid, b"<script>alert(1)</script>", name="x.png").status_code == 415
+    assert upload(a, cid, PNG + b"0" * photos.MAX_BYTES).status_code == 413
+    assert list(upload_dir.rglob("*.*")) == []
+
+
+def test_photo_limit_per_check(a, upload_dir):
+    cid = send(a, "tok-a")["id"]
+    for _ in range(photos.MAX_PER_CHECK):
+        assert upload(a, cid).status_code == 201
+    assert upload(a, cid).status_code == 409
+
+
+def test_photo_only_on_own_vehicle_and_recent_check(a, upload_dir, monkeypatch):
+    cid = send(a, "tok-a")["id"]
+    assert upload(a, cid, token="tok-a2").status_code == 404  # contrôle d'un autre camion
+    monkeypatch.setattr(main_module, "PHOTO_WINDOW", timedelta(seconds=-1))
+    assert upload(a, cid).status_code == 403
+
+
+def test_photo_cross_tenant_token(a, b, upload_dir):
+    cid = send(a, "tok-a")["id"]
+    assert upload(b, cid, token="tok-b").status_code == 404
+
+
+def test_check_detail_isolation(a, b):
+    cid = send(b, "tok-b")["id"]
+    assert a.get(f"/api/admin/controles/{cid}").status_code == 404
+    assert [c["plaque"] for c in a.get("/api/admin/controles").json()] == []
+
+
+def test_deblocages_isolation(a, b):
+    vid_b = next(v["id"] for v in b.get("/api/admin/vehicules").json())
+    send(b, "tok-b", "pneus")
+    b.post(f"/api/admin/vehicules/{vid_b}/debloquer", json={"commentaire": "Pneu changé"})
+    assert a.get("/api/admin/deblocages").json() == []
+    assert len(b.get("/api/admin/deblocages").json()) == 1
+
+
+def paris(h, m=0):
+    """Instant UTC correspondant à h:m heure de Paris le 15 janvier 2026 (UTC+1)."""
+    return datetime(2026, 1, 15, h - 1, m, tzinfo=timezone.utc)
+
+
+def test_reminder_lists_unchecked_vehicles_after_threshold(a, client):
+    with client.Session() as db:
+        company = db.get(Company, 1)
+        assert company.heure_rappel == "08:00"
+        assert sans_controle(db, company, paris(7, 59)) == []
+        assert {v.plaque for v in sans_controle(db, company, paris(8, 0))} == {"AA-111-AA", "ZZ-999-ZZ"}
+        db.add(Check(company_id=1, vehicle_id=1, conducteur="P", reponses=[], created_at=paris(6, 30)))
+        db.commit()
+        assert [v.plaque for v in sans_controle(db, company, paris(9))] == ["ZZ-999-ZZ"]
+        # un contrôle de la veille ne compte pas
+        db.add(Check(company_id=1, vehicle_id=2, conducteur="P", reponses=[], created_at=paris(9) - timedelta(days=1)))
+        db.commit()
+        assert [v.plaque for v in sans_controle(db, company, paris(9))] == ["ZZ-999-ZZ"]
+
+
+def make_admin(client, email):
+    with client.Session() as db:
+        db.query(User).filter_by(email=email).update({"role": "admin"})
+        db.commit()
+
+
+def test_settings_admin_only_and_validated(a, client):
+    assert a.get("/api/admin/parametres").json() == {"heure_rappel": "08:00", "retention_jours": 1095}
+    assert a.patch("/api/admin/parametres", json={"heure_rappel": "07:30"}).status_code == 403
+    make_admin(client, "a@a.fr")
+    assert a.patch("/api/admin/parametres", json={"heure_rappel": "25:00"}).status_code == 422
+    assert a.patch("/api/admin/parametres", json={"retention_jours": 5}).status_code == 422
+    r = a.patch("/api/admin/parametres", json={"heure_rappel": "07:30", "retention_jours": 365})
+    assert r.json() == {"heure_rappel": "07:30", "retention_jours": 365}
+
+
+def test_purge_respects_each_company_retention(a, client, upload_dir):
+    now = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    old, recent = now - timedelta(days=1200), now - timedelta(days=100)
+    with client.Session() as db:
+        db.get(Company, 2).retention_jours = 30
+        old_a = Check(company_id=1, vehicle_id=1, conducteur="P", reponses=[], created_at=old)
+        new_a = Check(company_id=1, vehicle_id=1, conducteur="P", reponses=[], created_at=recent)
+        old_b = Check(company_id=2, vehicle_id=3, conducteur="P", reponses=[], created_at=recent)
+        db.add_all([old_a, new_a, old_b])
+        db.flush()
+        name = photos.save(1, PNG, "png")
+        db.add(CheckPhoto(company_id=1, check_id=old_a.id, fichier=name))
+        db.commit()
+        assert (upload_dir / "1" / name).exists()
+        assert purge(db, now) == 2  # vieux contrôle de A (3 ans) + contrôle de B (durée 30 jours)
+        left = db.query(Check).all()
+        assert [c.id for c in left] == [new_a.id]
+        assert db.query(CheckPhoto).count() == 0 and not (upload_dir / "1" / name).exists()

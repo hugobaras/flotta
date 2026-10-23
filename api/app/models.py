@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -14,6 +14,9 @@ class Company(Base):
     __tablename__ = "companies"
     id: Mapped[int] = mapped_column(primary_key=True)
     nom: Mapped[str] = mapped_column(String(200))
+    heure_rappel: Mapped[str] = mapped_column(String(5), default="08:00", server_default="08:00")  # HH:MM, heure de Paris
+    # RGPD : durée de conservation des contrôles, photos et positions (3 ans par défaut).
+    retention_jours: Mapped[int] = mapped_column(default=1095, server_default="1095")
 
 
 class User(Base):
@@ -71,4 +74,27 @@ class Check(Base):
     # Copie figée des points au moment du contrôle : [{id, libelle, critique, ok, commentaire}]
     reponses: Mapped[list] = mapped_column(JSON)
     defaut_critique: Mapped[bool] = mapped_column(default=False)
+    has_defaut: Mapped[bool] = mapped_column(default=False, server_default=false())  # au moins un point KO
+    signature: Mapped[str | None] = mapped_column(Text)  # data URL PNG
+    lat: Mapped[float | None] = mapped_column(Float)
+    lng: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class CheckPhoto(Base):
+    __tablename__ = "check_photos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    check_id: Mapped[int] = mapped_column(ForeignKey("checks.id"), index=True)
+    fichier: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Unblock(Base):
+    __tablename__ = "unblocks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    commentaire: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
