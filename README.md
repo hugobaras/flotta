@@ -29,3 +29,12 @@ Squelette du module « contrôle avant départ ». Contexte et étapes : `claude
 - Destinataires : Paramètres, un email par ligne (10 maximum par société). Pas de SMS pour l'instant.
 - Rappel : un email par jour et par société, dès l'heure choisie, avec les camions sans contrôle. La purge RGPD tourne chaque nuit à 3 h (heure de Paris).
 - PDF d'un contrôle : bouton sur la page de détail. Logo de la société : Paramètres (JPEG ou PNG, 1 Mo maximum).
+
+## Flotte, conducteurs, QR codes (étape 4)
+
+- Véhicules : gabarit (hauteur, largeur, longueur, PTAC, essieux), capacité (palettes, kg, m³), ADR, frigo, statut actif. Un véhicule avec historique se désactive, il ne se supprime pas.
+- Import CSV ou Excel (`.xlsx`) : aperçu ligne par ligne avant import (`/api/admin/vehicules/import/apercu`), puis import des lignes valides. Séparateur `;` ou `,`, virgule décimale, encodage UTF-8 ou Windows. Colonnes reconnues : plaque, type, hauteur, largeur, longueur, PTAC, charge utile, essieux, palettes, kg, m3, ADR, frigo, actif.
+- Planches de QR codes : `GET /api/admin/vehicules/qr.pdf` (6 par page, avec la plaque). L'adresse encodée vient de `APP_URL`.
+- Conducteurs : code PIN à 4 chiffres, unique par société, montré une seule fois (en base : HMAC avec `PIN_SECRET`, à définir en production). Le chauffeur saisit son code sur la page du camion et reçoit un badge signé valable 12 h ; 5 essais ratés par camion et par 15 minutes bloquent la saisie. Sans réseau ou sans code, il peut saisir son nom.
+- Mode hors ligne : un service worker garde la page et la checklist d'un camion déjà ouvert ; un contrôle fait sans réseau est mis en file sur le téléphone (IndexedDB, photos comprises) et envoyé au retour du réseau. Chaque envoi porte un identifiant (`client_id`) : le rejouer ne crée jamais de doublon. L'heure réelle du contrôle (`fait_le`) est conservée si elle est plausible (moins de 7 jours, pas dans le futur).
+- Limite connue : le mode hors ligne suppose que le chauffeur a ouvert la page du camion au moins une fois avec du réseau.
