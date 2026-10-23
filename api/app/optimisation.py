@@ -33,6 +33,7 @@ class CommandeOpt:
     service_min: int = 15
     frigo: bool = False
     adr: bool = False
+    vehicule_impose: int | None = None  # arrêt verrouillé : doit rester sur ce véhicule
 
 
 @dataclass
@@ -70,7 +71,8 @@ class Solution:
 
 
 def _compatibles(c: CommandeOpt, vehicules: list[VehiculeOpt]) -> list[VehiculeOpt]:
-    return [v for v in vehicules if (not c.frigo or v.frigo) and (not c.adr or v.adr)]
+    return [v for v in vehicules if (not c.frigo or v.frigo) and (not c.adr or v.adr)
+            and (c.vehicule_impose is None or v.id == c.vehicule_impose)]
 
 
 def _tient(c: CommandeOpt, v: VehiculeOpt) -> bool:

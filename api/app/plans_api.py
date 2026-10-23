@@ -3,13 +3,13 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from . import plans
 from .auth import current_user
 from .db import get_db
-from .models import Depot, Plan, Route, RouteStop, User, Vehicle
+from .models import Depot, Plan, PlanSnapshot, Route, RouteStop, User, Vehicle
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/plans")
@@ -71,6 +71,7 @@ def lire(plan_id: int, user: User = Depends(current_user), db: Session = Depends
 @router.delete("/{plan_id}", status_code=204)
 def supprimer(plan_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     p = _plan(db, user, plan_id)
+    db.execute(delete(PlanSnapshot).where(PlanSnapshot.plan_id == p.id))
     for r in db.scalars(select(Route).where(Route.plan_id == p.id)):
         for s in db.scalars(select(RouteStop).where(RouteStop.route_id == r.id)):
             db.delete(s)
@@ -78,3 +79,90 @@ def supprimer(plan_id: int, user: User = Depends(current_user), db: Session = De
     db.delete(p)
     db.commit()
     return Response(status_code=204)
+
+
+# --- Modifications manuelles : recalcul immédiat des heures et des alertes, sans relancer l'optimisation ---
+
+
+def _terminé(p: Plan):
+    if p.statut != "termine":
+        raise HTTPException(409, "Le plan n'est pas encore calculé")
+
+
+def _appliquer(db: Session, p: Plan, action):
+    _terminé(p)
+    try:
+        action()
+        db.commit()
+    except plans.ModificationRefusee as e:
+        db.rollback()
+        raise HTTPException(e.statut, str(e))
+    return plans.detail(db, p)
+
+
+class Deplacement(BaseModel):
+    order_id: int
+    vehicle_id: int | None = None  # None : devient non affectée
+    position: int | None = Field(default=None, ge=0)
+
+
+@router.post("/{plan_id}/deplacer")
+def deplacer(plan_id: int, body: Deplacement, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    p = _plan(db, user, plan_id)
+    return _appliquer(db, p, lambda: plans.deplacer(db, p, body.order_id, body.vehicle_id, body.position))
+
+
+class Verrou(BaseModel):
+    vehicle_id: int | None = None
+    order_id: int | None = None
+    verrouille: bool = True
+
+
+@router.post("/{plan_id}/verrouiller")
+def verrouiller(plan_id: int, body: Verrou, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    p = _plan(db, user, plan_id)
+    return _appliquer(db, p, lambda: plans.verrouiller(db, p, body.vehicle_id, body.order_id, body.verrouille))
+
+
+@router.post("/{plan_id}/annuler")
+def annuler(plan_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    p = _plan(db, user, plan_id)
+    return _appliquer(db, p, lambda: plans.annuler(db, p))
+
+
+@router.post("/{plan_id}/retablir")
+def retablir(plan_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    p = _plan(db, user, plan_id)
+    return _appliquer(db, p, lambda: plans.retablir(db, p))
+
+
+class VersionIn(BaseModel):
+    nom: str = Field(min_length=1, max_length=100)
+
+
+@router.post("/{plan_id}/versions", status_code=201)
+def enregistrer_version(plan_id: int, body: VersionIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    p = _plan(db, user, plan_id)
+    _terminé(p)
+    copie = plans.creer_version(db, p, body.nom)
+    db.commit()
+    return plans.detail(db, copie)
+
+
+@router.post("/{plan_id}/reoptimiser", status_code=202)
+def reoptimiser(plan_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Réoptimise le plan sans toucher aux tournées verrouillées (calcul en tâche de fond, comme le plan initial)."""
+    p = _plan(db, user, plan_id)
+    try:
+        plans.lancer_reoptimisation(db, p)
+    except plans.ModificationRefusee as e:
+        raise HTTPException(e.statut, str(e))
+    try:
+        enqueue_plan(p.id)
+    except Exception:  # noqa: BLE001
+        log.exception("Plan %s : file de tâches indisponible", p.id)
+        p.statut = "termine"
+        p.parametres = {k: v for k, v in p.parametres.items() if k != "reoptimiser"}
+        db.commit()
+        raise HTTPException(503, "La file de calcul est indisponible : la réoptimisation n'a pas été lancée.")
+    return {"id": p.id, "statut": p.statut}

@@ -227,6 +227,9 @@ class Plan(Base):
     resume: Mapped[dict | None] = mapped_column(JSON)  # kilomètres, durée, taux de remplissage, véhicules exclus...
     non_affectees: Mapped[list] = mapped_column(JSON, default=list)  # [{order_id, raison}]
     matrices: Mapped[dict | None] = mapped_column(JSON)  # conservées pour recalculer sans rappeler le routage
+    nom: Mapped[str | None] = mapped_column(String(100))  # nom de la version enregistrée
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"))  # plan dont cette version est copiée
+    curseur: Mapped[int] = mapped_column(default=0, server_default="0")  # position dans l'historique des modifications
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -257,3 +260,15 @@ class RouteStop(Base):
     depart_min: Mapped[float] = mapped_column(Float)
     attente_min: Mapped[float] = mapped_column(Float, default=0)
     verrouille: Mapped[bool] = mapped_column(default=False, server_default=false())
+
+
+class PlanSnapshot(Base):
+    """État du plan après chaque modification : annuler / rétablir. Le snapshot 0 est le plan optimisé d'origine."""
+    __tablename__ = "plan_snapshots"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), index=True)
+    seq: Mapped[int]
+    libelle: Mapped[str] = mapped_column(String(200))
+    etat: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    __table_args__ = (UniqueConstraint("plan_id", "seq", name="uq_snapshot_seq"),)

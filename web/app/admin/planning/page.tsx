@@ -1,16 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Carte, { Point } from "../../lib/Carte";
-import { Plaque } from "../../ui";
+import Carte, { Point, Trace } from "../../lib/Carte";
+import { Cadenas, Plaque } from "../../ui";
 
-type Arret = { id: number; ordre: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; reference: string; client: string; adresse: string; lat: number | null; lng: number | null };
-type Tournee = { id: number; vehicle_id: number; plaque: string; depart_min: number; retour_min: number; distance_km: number; charge_kg: number; charge_palettes: number; arrets: Arret[] };
+type Arret = { id: number; ordre: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; verrouille: boolean; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; fenetre_fin: string | null };
+type Tournee = { id: number; vehicle_id: number; plaque: string; depart_min: number; retour_min: number; distance_km: number; charge_kg: number; charge_palettes: number; verrouille: boolean; arrets: Arret[] };
 type NonAffectee = { order_id: number; reference?: string; adresse?: string; raison: string };
+type Indic = { km: number; duree_min: number; nb_tournees: number; remplissage_pct: number | null; nb_alertes: number; nb_non_affectees: number };
+type Alerte = { type: string; message: string; route_vehicle_id: number; commande_id: number | null };
 type Plan = {
-  id: number; jour: string; statut: "en_attente" | "en_cours" | "termine" | "echec"; progression: number; message: string | null;
-  resume: { km: number; duree_min: number; nb_tournees: number; nb_commandes: number; remplissage_pct: number | null; vehicules_exclus: { plaque: string; raison: string }[] } | null;
-  routes: Tournee[]; non_affectees: NonAffectee[];
+  id: number; jour: string; statut: "en_attente" | "en_cours" | "termine" | "echec"; progression: number; message: string | null; nom: string | null;
+  resume: (Indic & { vehicules_exclus: { plaque: string; raison: string }[] }) | null; reference: Indic | null; routes: Tournee[]; non_affectees: NonAffectee[];
+  alertes: Alerte[]; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string }[];
 };
 
 const COULEURS = ["#111418", "#e5560a", "#1a7f4b", "#2b6cb0", "#8a3ffc", "#c77700", "#d3281b", "#0f8b8d"];
@@ -19,11 +21,20 @@ const hhmm = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}
 const duree = (m: number) => `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, "0")}`;
 const json = { "Content-Type": "application/json" };
 
+function Delta({ valeur, ref, bas = true, unite = "" }: { valeur: number; ref: number | undefined; bas?: boolean; unite?: string }) {
+  if (ref === undefined || valeur === ref) return null;
+  const d = Math.round((valeur - ref) * 10) / 10;
+  const mieux = bas ? d < 0 : d > 0;
+  return <span className={`delta ${mieux ? "mieux" : "pire"}`}>{d > 0 ? "+" : "−"}{Math.abs(d).toLocaleString("fr-FR")}{unite}</span>;
+}
+
 export default function Planning() {
   const [jour, setJour] = useState(aujourdhui);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [erreur, setErreur] = useState("");
   const [tempsMax, setTempsMax] = useState(10);
+  const [glisse, setGlisse] = useState<number | null>(null);
+  const [sur, setSur] = useState<string | null>(null);
   const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lire = useCallback(async (id: number) => {
@@ -49,36 +60,78 @@ export default function Planning() {
     return () => { if (minuteur.current) clearTimeout(minuteur.current); };
   }, [jour, lire]);
 
+  async function appeler(chemin: string, corps?: object) {
+    setErreur("");
+    const r = await fetch(`/api/admin/plans/${plan!.id}/${chemin}`, { method: "POST", headers: json, body: corps ? JSON.stringify(corps) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setErreur(typeof j.detail === "string" ? j.detail : "Action impossible.");
+    if (r.status === 202) lire(plan!.id);
+    else setPlan(j);
+  }
+
   async function optimiser() {
     setErreur("");
     const r = await fetch("/api/admin/plans", { method: "POST", headers: json, body: JSON.stringify({ jour, temps_max_s: tempsMax }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return setErreur(typeof j.detail === "string" ? j.detail : "Impossible de lancer le calcul.");
-    setPlan({ id: j.id, jour, statut: "en_attente", progression: 0, message: null, resume: null, routes: [], non_affectees: [] });
+    setPlan({ id: j.id, jour, statut: "en_attente", progression: 0, message: null, nom: null, resume: null, reference: null, routes: [], non_affectees: [], alertes: [], peut_annuler: false, peut_retablir: false, versions: [] });
     lire(j.id);
   }
 
-  const points: Point[] = useMemo(
-    () => (plan?.routes ?? []).flatMap((t, i) => t.arrets.filter((a) => a.lat !== null).map((a) => ({
-      id: a.order_id, lat: a.lat!, lng: a.lng!, couleur: COULEURS[i % COULEURS.length], titre: `${t.plaque} · ${a.ordre}. ${a.reference}`,
-    }))),
-    [plan],
-  );
+  const deplacer = (order_id: number, vehicle_id: number | null, position?: number) => appeler("deplacer", { order_id, vehicle_id, position });
+
+  async function enregistrerVersion() {
+    const nom = window.prompt("Nom de cette version du plan", "");
+    if (nom?.trim()) {
+      const r = await fetch(`/api/admin/plans/${plan!.id}/versions`, { method: "POST", headers: json, body: JSON.stringify({ nom }) });
+      if (r.ok) setPlan(await r.json());
+    }
+  }
+
+  const termine = plan?.statut === "termine";
+  const utilisees = useMemo(() => (plan?.routes ?? []).filter((t) => t.arrets.length > 0 || t.verrouille), [plan]);
+  const bornes = useMemo(() => {
+    const t = (plan?.routes ?? []).filter((r) => r.arrets.length);
+    if (!t.length) return { debut: 6 * 60, fin: 19 * 60 };
+    return { debut: Math.floor(Math.min(...t.map((r) => r.depart_min)) / 60) * 60, fin: Math.ceil(Math.max(...t.map((r) => r.retour_min)) / 60) * 60 };
+  }, [plan]);
+  const couleurDe = (vid: number) => COULEURS[(plan?.routes ?? []).findIndex((t) => t.vehicle_id === vid) % COULEURS.length];
+  const retards = new Set((plan?.alertes ?? []).filter((a) => a.type === "retard" && a.commande_id).map((a) => a.commande_id));
+  const points: Point[] = useMemo(() => (plan?.routes ?? []).flatMap((t) => t.arrets.filter((a) => a.lat !== null).map((a) => ({ id: a.order_id, lat: a.lat!, lng: a.lng!, couleur: couleurDe(t.vehicle_id), titre: `${t.plaque} · ${a.ordre}. ${a.reference}` }))), // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plan]);
+  const traces: Trace[] = useMemo(() => (plan?.routes ?? []).map((t) => ({ couleur: couleurDe(t.vehicle_id), coords: t.arrets.filter((a) => a.lat !== null).map((a) => [a.lng!, a.lat!] as [number, number]) })), // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plan]);
   const enCours = plan && (plan.statut === "en_attente" || plan.statut === "en_cours");
+  const pos = (m: number) => `${((m - bornes.debut) / Math.max(1, bornes.fin - bornes.debut)) * 100}%`;
+  const ref = plan?.reference ?? undefined;
 
   return (
     <>
       <div className="page-head">
-        <div><h1>Planning</h1><p>Les tournées optimisées de la journée, par camion.</p></div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input className="input" type="date" aria-label="Jour à planifier" value={jour} onChange={(e) => setJour(e.target.value || aujourdhui())} />
-          <label className="field" style={{ gridAutoFlow: "column", alignItems: "center", gap: 8 }}>
-            <span className="hint">Calcul max.</span>
-            <input className="input" type="number" min={1} max={120} value={tempsMax} onChange={(e) => setTempsMax(Number(e.target.value))} style={{ width: 80 }} aria-label="Temps de calcul maximal en secondes" />
-            <span className="hint">s</span>
-          </label>
-          <button className="btn btn-primary" onClick={optimiser} disabled={!!enCours}>{enCours ? "Calcul en cours…" : plan ? "Recalculer" : "Optimiser"}</button>
-        </div>
+        <div><h1>Planning</h1><p>Glissez un arrêt vers un autre camion : heures et alertes sont recalculées aussitôt.</p></div>
+        <input className="input" type="date" aria-label="Jour à planifier" value={jour} onChange={(e) => setJour(e.target.value || aujourdhui())} />
+      </div>
+
+      <div className="barre-outils">
+        <button className="btn btn-primary" onClick={optimiser} disabled={!!enCours}>{enCours ? "Calcul en cours…" : plan ? "Recalculer le plan" : "Optimiser"}</button>
+        <label className="field" style={{ gridAutoFlow: "column", alignItems: "center", gap: 6 }}>
+          <span className="hint">Calcul max.</span>
+          <input className="input" type="number" min={1} max={120} value={tempsMax} onChange={(e) => setTempsMax(Number(e.target.value))} style={{ width: 72, minHeight: 34 }} aria-label="Temps de calcul maximal en secondes" />
+          <span className="hint">s</span>
+        </label>
+        {termine && (
+          <>
+            <button className="btn" onClick={() => appeler("reoptimiser")}>Réoptimiser (hors verrouillés)</button>
+            <button className="btn btn-ghost" disabled={!plan!.peut_annuler} onClick={() => appeler("annuler")}>Annuler</button>
+            <button className="btn btn-ghost" disabled={!plan!.peut_retablir} onClick={() => appeler("retablir")}>Rétablir</button>
+            <button className="btn btn-ghost" onClick={enregistrerVersion}>Enregistrer une version</button>
+            {plan!.versions.length > 1 && (
+              <select className="select" style={{ width: "auto" }} aria-label="Version du plan" value={plan!.id} onChange={(e) => lire(Number(e.target.value))}>
+                {plan!.versions.map((v) => <option key={v.id} value={v.id}>{v.nom ?? "Plan optimisé"} · {new Date(v.created_at).toLocaleTimeString("fr-FR", { timeStyle: "short" })}</option>)}
+              </select>
+            )}
+          </>
+        )}
       </div>
       {erreur && <div className="notice danger" role="alert">{erreur}</div>}
 
@@ -89,50 +142,94 @@ export default function Planning() {
         </div>
       )}
       {plan?.statut === "echec" && <div className="notice danger" role="alert">{plan.message ?? "Le calcul a échoué."}</div>}
+      {termine && plan!.message && <div className="notice" role="status">{plan!.message}</div>}
 
-      {plan?.statut === "termine" && plan.resume && (
+      {termine && plan!.resume && (
         <>
-          <p style={{ fontSize: 18, marginBottom: 16 }}>
-            <strong>{plan.resume.nb_tournees}</strong> tournée(s) · <strong>{plan.resume.km.toLocaleString("fr-FR")} km</strong> · {duree(plan.resume.duree_min)} de route et service
-            {plan.resume.remplissage_pct !== null && <> · remplissage {plan.resume.remplissage_pct} %</>}
-          </p>
-          {plan.resume.vehicules_exclus.length > 0 && (
-            <div className="notice" role="status">Camions non planifiés : {plan.resume.vehicules_exclus.map((e) => `${e.plaque} (${e.raison.toLowerCase()})`).join(", ")}</div>
-          )}
+          <dl className="indicateurs" aria-label="Indicateurs du plan, comparés au plan initial">
+            <div><dt>Distance</dt><dd>{plan!.resume.km.toLocaleString("fr-FR")} km<Delta valeur={plan!.resume.km} ref={ref?.km} unite=" km" /></dd></div>
+            <div><dt>Durée totale</dt><dd>{duree(plan!.resume.duree_min)}<Delta valeur={plan!.resume.duree_min} ref={ref?.duree_min} unite=" min" /></dd></div>
+            <div><dt>Remplissage</dt><dd>{plan!.resume.remplissage_pct ?? "–"}{plan!.resume.remplissage_pct !== null && " %"}{plan!.resume.remplissage_pct !== null && <Delta valeur={plan!.resume.remplissage_pct} ref={ref?.remplissage_pct ?? undefined} bas={false} unite=" pt" />}</dd></div>
+            <div><dt>Alertes</dt><dd>{plan!.resume.nb_alertes}<Delta valeur={plan!.resume.nb_alertes} ref={ref?.nb_alertes} /></dd></div>
+            <div><dt>Non affectées</dt><dd>{plan!.resume.nb_non_affectees}<Delta valeur={plan!.resume.nb_non_affectees} ref={ref?.nb_non_affectees} /></dd></div>
+          </dl>
+          {plan!.resume.vehicules_exclus.length > 0 && <div className="notice" role="status">Camions non planifiés : {plan!.resume.vehicules_exclus.map((e) => `${e.plaque} (${e.raison.toLowerCase()})`).join(", ")}</div>}
+          {plan!.alertes.length > 0 && <ul className="alertes" role="alert" aria-label="Alertes du plan">{plan!.alertes.map((a, i) => <li key={i}>{a.message}</li>)}</ul>}
+
           <div className="split">
             <div>
-              {plan.routes.map((t, i) => (
-                <section key={t.id} className="section" style={{ marginTop: i ? 32 : 0 }}>
+              {utilisees.map((t, i) => (
+                <section key={t.vehicle_id} className="section" style={{ marginTop: i ? 32 : 0 }}
+                  onDragOver={(e) => { if (glisse !== null && !t.verrouille) { e.preventDefault(); setSur(`r${t.vehicle_id}`); } }}
+                  onDragLeave={() => setSur(null)}
+                  onDrop={(e) => { e.preventDefault(); setSur(null); if (glisse !== null) deplacer(glisse, t.vehicle_id); setGlisse(null); }}>
                   <h2>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-                      <span className="dot" style={{ background: COULEURS[i % COULEURS.length], width: 12, height: 12 }} aria-hidden /><Plaque>{t.plaque}</Plaque>
+                      <span className="dot" style={{ background: couleurDe(t.vehicle_id), width: 12, height: 12 }} aria-hidden /><Plaque>{t.plaque}</Plaque>
+                      <button className="btn btn-ghost btn-sm" aria-pressed={t.verrouille} onClick={() => appeler("verrouiller", { vehicle_id: t.vehicle_id, verrouille: !t.verrouille })}><Cadenas ferme={t.verrouille} />{t.verrouille ? "Tournée verrouillée" : "Verrouiller"}</button>
                     </span>
-                    <small>{hhmm(t.depart_min)} → {hhmm(t.retour_min)} · {t.distance_km} km · {t.charge_kg} kg · {t.charge_palettes} pal.</small>
+                    <small>{t.arrets.length ? `${hhmm(t.depart_min)} → ${hhmm(t.retour_min)} · ${t.distance_km} km · ${t.charge_kg} kg · ${t.charge_palettes} pal.` : "Aucun arrêt"}</small>
                   </h2>
-                  <ol className="items">
-                    {t.arrets.map((a) => (
-                      <li key={a.id} className="item-row">
-                        <span className="num" style={{ width: 52, fontWeight: 600 }}>{hhmm(a.arrivee_min)}</span>
-                        <span className="item-label" style={{ fontWeight: 400 }}><strong>{a.reference}</strong> <span className="muted">· {a.client} · {a.adresse}{a.attente_min >= 1 ? ` · attente ${Math.round(a.attente_min)} min` : ""}</span></span>
+                  {t.arrets.length > 0 && (
+                    <>
+                      <div className="frise" role="img" aria-label={`Frise horaire de ${t.plaque}`}>
+                        {t.arrets.map((a) => (
+                          <span key={a.id}>
+                            {a.attente_min >= 1 && <span className="attente" style={{ left: pos(a.arrivee_min - a.attente_min), width: `calc(${pos(a.arrivee_min)} - ${pos(a.arrivee_min - a.attente_min)})` }} />}
+                            <span className={`bloc ${retards.has(a.order_id) ? "retard" : ""}`} title={`${a.reference} ${hhmm(a.arrivee_min)}-${hhmm(a.depart_min)}`}
+                              style={{ left: pos(a.arrivee_min), width: `max(4px, calc(${pos(a.depart_min)} - ${pos(a.arrivee_min)}))`, background: couleurDe(t.vehicle_id) }} />
+                          </span>
+                        ))}
+                      </div>
+                      <div className="frise-axe" aria-hidden><span>{hhmm(bornes.debut)}</span><span>{hhmm(bornes.fin)}</span></div>
+                    </>
+                  )}
+                  <ol className="items" style={{ borderBottom: 0 }}>
+                    {t.arrets.map((a, n) => (
+                      <li key={a.id}
+                        className={`stop ${a.verrouille || t.verrouille ? "verrou" : ""} ${sur === `s${a.order_id}` ? "sur" : ""}`}
+                        draggable={!a.verrouille && !t.verrouille}
+                        onDragStart={() => setGlisse(a.order_id)}
+                        onDragEnd={() => { setGlisse(null); setSur(null); }}
+                        onDragOver={(e) => { if (glisse !== null && glisse !== a.order_id && !t.verrouille) { e.preventDefault(); e.stopPropagation(); setSur(`s${a.order_id}`); } }}
+                        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setSur(null); if (glisse !== null && glisse !== a.order_id) deplacer(glisse, t.vehicle_id, n); setGlisse(null); }}>
+                        <span className="heure" style={{ color: retards.has(a.order_id) ? "var(--rouge)" : undefined }}>{hhmm(a.arrivee_min)}</span>
+                        <span className="corps"><strong>{a.reference}</strong> <span className="muted">· {a.client} · {a.adresse}{a.fenetre_fin ? ` · avant ${a.fenetre_fin}` : ""}{a.attente_min >= 1 ? ` · attente ${Math.round(a.attente_min)} min` : ""}</span></span>
+                        <select className="select" aria-label={`Déplacer ${a.reference} vers`} value="" disabled={a.verrouille || t.verrouille}
+                          onChange={(e) => { const v = e.target.value; if (v) deplacer(a.order_id, v === "aucun" ? null : Number(v)); }}>
+                          <option value="">Déplacer…</option>
+                          {plan!.routes.filter((r) => r.vehicle_id !== t.vehicle_id && !r.verrouille).map((r) => <option key={r.vehicle_id} value={r.vehicle_id}>{r.plaque}</option>)}
+                          <option value="aucun">Retirer du plan</option>
+                        </select>
+                        <button className="btn btn-ghost btn-icon" aria-pressed={a.verrouille} aria-label={`${a.verrouille ? "Déverrouiller" : "Verrouiller"} ${a.reference}`} disabled={t.verrouille}
+                          onClick={() => appeler("verrouiller", { order_id: a.order_id, verrouille: !a.verrouille })}><Cadenas ferme={a.verrouille} /></button>
                       </li>
                     ))}
                   </ol>
                 </section>
               ))}
-              {plan.non_affectees.length > 0 && (
-                <section className="section">
-                  <h2>Non affectées <small>{plan.non_affectees.length}</small></h2>
-                  <ul className="items">
-                    {plan.non_affectees.map((n) => (
-                      <li key={n.order_id} className="item-row" style={{ alignItems: "flex-start" }}>
-                        <span className="item-label" style={{ fontWeight: 400 }}><strong>{n.reference ?? `#${n.order_id}`}</strong> <span className="muted">· {n.adresse}</span><br /><span style={{ color: "var(--rouge)" }}>{n.raison}</span></span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+
+              <section className="section" aria-labelledby="non-aff" onDragOver={(e) => { if (glisse !== null) { e.preventDefault(); setSur("non"); } }} onDragLeave={() => setSur(null)}
+                onDrop={(e) => { e.preventDefault(); setSur(null); if (glisse !== null) deplacer(glisse, null); setGlisse(null); }}>
+                <h2 id="non-aff">Non affectées <small>{plan!.non_affectees.length}</small></h2>
+                <div className={`zone-depot ${sur === "non" ? "sur" : ""}`}>Déposez ici un arrêt pour le retirer du plan.</div>
+                <ul className="items" style={{ borderBottom: 0 }}>
+                  {plan!.non_affectees.map((n) => (
+                    <li key={n.order_id} className="stop" draggable onDragStart={() => setGlisse(n.order_id)} onDragEnd={() => { setGlisse(null); setSur(null); }} style={{ alignItems: "flex-start" }}>
+                      <span className="corps"><strong>{n.reference ?? `#${n.order_id}`}</strong> <span className="muted">· {n.adresse}</span><br /><span style={{ color: "var(--rouge)" }}>{n.raison}</span></span>
+                      <select className="select" aria-label={`Affecter ${n.reference ?? n.order_id} à`} value="" onChange={(e) => e.target.value && deplacer(n.order_id, Number(e.target.value))}>
+                        <option value="">Affecter à…</option>
+                        {plan!.routes.filter((r) => !r.verrouille).map((r) => <option key={r.vehicle_id} value={r.vehicle_id}>{r.plaque}</option>)}
+                      </select>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             </div>
-            <div><Carte points={points} /></div>
+            <div>
+              <Carte points={points} traces={traces} />
+              <p className="hint" style={{ marginTop: 6 }}>Les tracés pointillés montrent l'ordre de passage à vol d'oiseau, pas l'itinéraire routier.</p>
+            </div>
           </div>
         </>
       )}

@@ -57,3 +57,12 @@ Squelette du module « contrôle avant départ ». Contexte et étapes : `claude
 - Temps de calcul maximal : paramètre `temps_max_s` (10 s par défaut, 120 s au plus). Les petits problèmes s'arrêtent plus tôt.
 - Mesure : 100 commandes et 8 camions (distances simulées) : plan complet en une dizaine de secondes.
 - Limite connue : la contrainte « hayon » d'une commande n'est pas prise en compte (les véhicules n'ont pas encore de champ hayon).
+
+## Interface de planification (étape 8)
+
+- Écran Planning : indicateurs (distance, durée, remplissage, alertes, non affectées) **comparés au plan initial**, alertes détaillées, une section par camion avec frise horaire et liste d'arrêts, carte (ordre de passage à vol d'oiseau, pas l'itinéraire routier).
+- Modification à la main : glisser-déposer d'un arrêt vers un autre camion, une autre position ou la zone « Non affectées » (ou menu « Déplacer… » au clavier). L'API recalcule les heures d'arrivée et les alertes avec les matrices conservées dans le plan, sans relancer l'optimisation ni rappeler Valhalla (quelques dizaines de millisecondes).
+- Alertes recalculées : retard sur une fenêtre horaire, surcharge (poids, palettes, volume), durée maximale de tournée, retour après la fermeture du dépôt, incompatibilité frigo ou ADR. Elles n'empêchent pas la modification : c'est à l'exploitant d'arbitrer.
+- Verrouillage d'un arrêt ou d'une tournée : un élément verrouillé ne se déplace plus et n'est pas touché par « Réoptimiser (hors verrouillés) ». Un arrêt verrouillé reste sur son camion mais peut changer de place dans la tournée.
+- Annuler / rétablir : historique de toutes les modifications d'un plan. « Enregistrer une version » copie le plan courant sous un nom ; les versions du jour sont dans le sélecteur.
+- Les routes des plans sont identifiées par véhicule et par commande (pas par identifiant de ligne) : les identifiants de lignes changent à chaque recalcul.
