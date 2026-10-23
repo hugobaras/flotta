@@ -106,7 +106,7 @@ def test_purge_etendue_aux_livraisons_activites_et_webhooks(client):
 
 def test_entetes_de_securite(client):
     h = client.get("/api/health").headers
-    assert h["x-content-type-options"] == "nosniff" and h["x-frame-options"] == "DENY" and h["referrer-policy"] == "same-origin"
+    assert h["x-content-type-options"] == "nosniff" and h["x-frame-options"] == "DENY" and h["referrer-policy"] == "strict-origin-when-cross-origin"
 
 
 def test_hsts_seulement_en_production(client, monkeypatch):

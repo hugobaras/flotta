@@ -34,7 +34,7 @@ def installer(app):
         r = await call_next(request)
         r.headers["X-Content-Type-Options"] = "nosniff"
         r.headers["X-Frame-Options"] = "DENY"
-        r.headers["Referrer-Policy"] = "same-origin"
+        r.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         r.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(self)"
         if os.getenv("COOKIE_SECURE") == "1":
             r.headers["Strict-Transport-Security"] = "max-age=31536000"
