@@ -3,14 +3,15 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from . import plans
+from .audit import journaliser
 from .auth import current_user
 from .db import get_db
 from .offres import exige
-from .models import Depot, Plan, PlanSnapshot, Route, RouteStop, User, Vehicle
+from .models import Depot, LivraisonEvenement, Plan, PlanLien, PlanSnapshot, Route, RouteStop, User, Vehicle
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/plans")
@@ -62,7 +63,7 @@ def creer(body: PlanIn, user: User = Depends(current_user), db: Session = Depend
 def lister(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(Plan).where(Plan.company_id == user.company_id).order_by(Plan.id.desc()).limit(50))
     return [{"id": p.id, "jour": p.jour, "statut": p.statut, "progression": p.progression, "resume": p.resume,
-             "created_at": p.created_at} for p in rows]
+             "created_at": p.created_at, "publie_le": p.publie_le} for p in rows]
 
 
 @router.get("/{plan_id}")
@@ -73,11 +74,15 @@ def lire(plan_id: int, user: User = Depends(current_user), db: Session = Depends
 @router.delete("/{plan_id}", status_code=204)
 def supprimer(plan_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     p = _plan(db, user, plan_id)
+    if db.scalar(select(LivraisonEvenement.id).where(LivraisonEvenement.plan_id == p.id).limit(1)):
+        raise HTTPException(409, "Des livraisons sont enregistrées sur ce plan : il ne peut plus être supprimé")
+    # Suppressions en masse dans l'ordre des clés étrangères (l'ORM ne le garantit pas sans relations déclarées).
+    db.execute(delete(RouteStop).where(RouteStop.route_id.in_(select(Route.id).where(Route.plan_id == p.id))))
+    db.execute(delete(Route).where(Route.plan_id == p.id))
     db.execute(delete(PlanSnapshot).where(PlanSnapshot.plan_id == p.id))
-    for r in db.scalars(select(Route).where(Route.plan_id == p.id)):
-        for s in db.scalars(select(RouteStop).where(RouteStop.route_id == r.id)):
-            db.delete(s)
-        db.delete(r)
+    db.execute(delete(PlanLien).where(PlanLien.plan_id == p.id))
+    db.execute(update(Plan).where(Plan.parent_id == p.id).values(parent_id=None))
+    journaliser(db, user, "suppression_plan", f"plan {p.id} du {p.jour}")
     db.delete(p)
     db.commit()
     return Response(status_code=204)

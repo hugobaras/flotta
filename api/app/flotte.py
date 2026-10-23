@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import tables
+from .audit import journaliser
 from .auth import current_user
 from .checklists import create_default_template
 from .db import get_db
@@ -169,6 +170,7 @@ def delete_vehicule(vehicle_id: int, user: User = Depends(current_user), db: Ses
         raise HTTPException(409, "Ce véhicule a un historique de contrôles : désactivez-le plutôt que de le supprimer")
     for d in db.scalars(select(Driver).where(Driver.vehicule_habituel_id == v.id)):
         d.vehicule_habituel_id = None
+    journaliser(db, user, "suppression_vehicule", v.plaque)
     db.delete(v)
     db.commit()
     return Response(status_code=204)

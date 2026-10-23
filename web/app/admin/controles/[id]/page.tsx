@@ -28,7 +28,7 @@ export default function DetailControle({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     if (!d || d.lat === null || d.lng === null || !carte.current) return;
     let map: { remove: () => void } | undefined;
-    import("maplibre-gl").then(({ default: maplibregl }) => {
+    import("maplibre-gl").then((maplibregl) => {
       const m = new maplibregl.Map({
         container: carte.current!,
         center: [d.lng!, d.lat!],

@@ -102,3 +102,27 @@ Module isolé `api/app/regulations/` (règlement CE 561/2006), intégré à l'op
 - **Back-office** : rôle `plateforme` (`PASSWORD=… python create_user.py EMAIL "Nom société" plateforme`), page `/admin/plateforme` : création de société, offre, camions facturés, statut (essai / actif / suspendu), MRR (abonnements actifs seulement), devis et factures PDF numérotés `DE-AAAA-NNNN` / `FA-AAAA-NNNN`. Le paiement se fait par virement.
 - **Mentions légales** : l'identité du vendeur vient de `VENDEUR_NOM`, `VENDEUR_ADRESSE`, `VENDEUR_SIREN`, `VENDEUR_TVA`, `VENDEUR_IBAN` (des marqueurs « à renseigner » s'impriment sinon). Le texte des pénalités de retard et de l'indemnité de 40 € est à faire relire par un comptable avant la première facture réelle.
 - Les fonctions `api` et `stats` de l'offre Pro n'ont pas encore de route à verrouiller (API publique : étape 13).
+
+## API publique et webhooks (étape 13)
+
+Offre Pro. Clés API et webhooks se gèrent dans **Réglages → Intégrations** (administrateurs). Documentation interactive : `/api/v1/docs` ; guide avec exemples curl et Python, vérification de signature : [docs/api-publique.md](docs/api-publique.md) ; script complet : `exemples/api_et_webhook.py`.
+
+- Clés `flt_…` : affichées une fois, stockées hachées (sha256), révocables, dernière utilisation suivie ; 120 requêtes par minute et par clé (`API_LIMITE_PAR_MINUTE`).
+- Webhooks `plan.publie`, `arret.livre`, `controle.defaut_critique`, signés `HMAC-SHA256(secret, "<t>." + corps)`, réessais à 1 min, 5 min, 30 min, 2 h, 12 h puis abandon. Adresses HTTPS publiques uniquement (contrôle à l'enregistrement et à l'envoi). Livraisons conservées en base ; la tâche Celery `relancer_webhooks_task` (toutes les minutes) reprend les envois dus.
+- Limites connues : le compteur de débit est en mémoire (un seul worker API) ; la vérification d'adresse à l'envoi ne protège pas contre un DNS qui change entre la vérification et la connexion ; le secret du webhook est stocké en clair (nécessaire pour signer).
+
+## Page d'accueil et « Mon offre »
+
+`/` est la page d'accueil publique (contrôle départ, tournées, tarifs) ; les tarifs viennent de `GET /api/offres`, donc de la grille configurée, jamais recopiés en dur. Réglages → Mon offre montre l'offre de la société. Aucune référence client ni chiffre d'impact n'est affiché : il n'y en a pas encore.
+
+## Production, sécurité et RGPD (étape 14)
+
+Déploiement (Caddy en HTTPS, sauvegardes S3, restauration), supervision (`/api/health`, Sentry, UptimeRobot), procédure d'incident : [docs/exploitation.md](docs/exploitation.md). RGPD : [registre des traitements](docs/rgpd/registre-traitements.md) et [modèle de contrat de sous-traitance](docs/rgpd/contrat-sous-traitance.md), à faire relire par un juriste. Journal d'audit des actions sensibles (déblocage, suppressions, clés API, changement d'offre) ; export et effacement par conducteur ; la purge automatique couvre aussi les événements de livraison, les activités de conduite et l'historique des webhooks (90 jours). En-têtes de sécurité (API et front), limite de débit par adresse (600 requêtes par minute, pages chauffeur exemptées), page d'état publique `/statut`, audit des dépendances dans la CI (`pip-audit`, `npm audit`).
+
+## Prise en main pour les pilotes (étape 15)
+
+- **Démarrer** (`/admin/demarrer`) : six étapes (flotte, conducteurs, checklists, QR codes, commandes d'essai, premier contrôle) avec ce qui est déjà fait, lu en base (`GET /api/admin/demarrage`).
+- **Données de démonstration** en un clic (administrateur) : 15 camions `DM-…`, 15 conducteurs « Démo n », un dépôt et 80 commandes `DEMO-…` du jour, déjà localisées autour de Nantes (aucun appel externe). `DELETE /api/admin/demo` retire uniquement ces données et ce qui s'y rattache.
+- **Aide** : infobulles `?` sur le planning, les conducteurs et les commandes ; guides d'une page par module en PDF (`/aide/*.pdf`), générés depuis `docs/client/*.md` par `scripts/guides_pdf.py`.
+- **Signaler un problème** (pied de page de l'espace exploitant) : message enregistré avec la page, la société, la version (`APP_VERSION`) et le navigateur ; lisible par la plateforme (`GET /api/plateforme/signalements`) ; envoyé par email à `SUPPORT_EMAIL` si Brevo est configuré.
+- Non mesuré : le critère « opérationnel en moins de 30 minutes » demande un essai avec une vraie société vierge.

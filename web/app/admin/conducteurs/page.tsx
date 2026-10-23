@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FlotteTabs } from "../../ui";
+import { FlotteTabs, Info } from "../../ui";
 
 type Conducteur = { id: number; nom: string; actif: boolean; vehicule_habituel_id: number | null; vehicule_habituel: string | null; email: string | null };
 type Vehicule = { id: number; plaque: string };
@@ -143,7 +143,7 @@ export default function Conducteurs() {
       ) : (
         <div className="table-wrap">
           <table className="rack rack-cards">
-            <thead><tr><th>Conducteur</th><th>Véhicule habituel</th><th>Email</th><th>État</th><th><span className="sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th>Conducteur <Info>Le code PIN à quatre chiffres n'est affiché qu'à la création ou à la réinitialisation. Le conducteur le tape sur son téléphone pour s'identifier.</Info></th><th>Véhicule habituel</th><th>Email</th><th>État</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
               {liste.map((c) => (
                 <tr key={c.id} style={{ opacity: c.actif ? 1 : 0.55 }}>

@@ -9,6 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from . import securite
+from .accueil import router as accueil_router
+from .audit import router as audit_router
+from .rgpd import router as rgpd_router
+from .securite import configurer_journaux
 from .auth import current_user, router as auth_router
 from . import photos
 from .checklist_routes import router as checklist_router
@@ -21,7 +26,9 @@ from .depots import router as depots_router
 from .exploitation import router as exploitation_router
 from .flotte import router as flotte_router
 from .itineraires import router as itineraires_router
+from .api_publique import admin as integrations_router, installer_docs, public as api_publique_router
 from .plans_api import router as plans_router
+from .offres import router as offres_router
 from .plateforme import router as plateforme_router
 from .tournees import admin as tournees_admin, chauffeur as tournees_chauffeur
 from .models import Alert, Check, CheckPhoto, Company, Driver, User, Vehicle
@@ -57,6 +64,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Transport SaaS", lifespan=lifespan)
+configurer_journaux()
+securite.installer(app)
 app.include_router(auth_router)
 app.include_router(checklist_router)
 app.include_router(exploitation_router)
@@ -66,7 +75,14 @@ app.include_router(commandes_router)
 app.include_router(depots_router)
 app.include_router(itineraires_router)
 app.include_router(plans_router)
+app.include_router(api_publique_router)
+app.include_router(integrations_router)
+installer_docs(app)
 app.include_router(plateforme_router)
+app.include_router(audit_router)
+app.include_router(accueil_router)
+app.include_router(rgpd_router)
+app.include_router(offres_router)
 app.include_router(tournees_admin)
 app.include_router(tournees_chauffeur)
 
@@ -79,8 +95,15 @@ def vehicle_by_token(token: str, db: Session) -> Vehicle:
 
 
 @app.get("/api/health")
-def health():
-    return {"ok": True}
+def health(response: Response, db: Session = Depends(get_db)):
+    """Sonde pour l'hébergeur et UptimeRobot : 503 si la base ne répond pas."""
+    try:
+        db.execute(select(1))
+    except Exception:
+        log.exception("Santé : base injoignable")
+        response.status_code = 503
+        return {"ok": False, "base": False}
+    return {"ok": True, "base": True}
 
 
 # --- Routes chauffeur : pas de compte, le jeton du QR code fait foi ---
@@ -223,6 +246,9 @@ def post_controle(token: str, body: ControleIn, background: BackgroundTasks, res
         return _reponse_controle(deja, v)
     if alert and alert.statut == "en_attente":
         background.add_task(enqueue_alert, alert.id)  # après la réponse au chauffeur
+    if defaut:
+        from . import webhooks
+        webhooks.declencher(db, v.company_id, "controle.defaut_critique", {"controle_id": check.id, "plaque": v.plaque, "date": check.created_at.isoformat()})
     return _reponse_controle(check, v)
 
 

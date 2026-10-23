@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Carte, { Point } from "../../lib/Carte";
-import { CommandesTabs } from "../../ui";
+import { CommandesTabs, Info } from "../../ui";
 
 type Commande = {
   id: number; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; geo_statut: string;
@@ -115,7 +115,10 @@ export default function Commandes() {
     const g = j.geocodage;
     setRapport(`${j.crees} commande(s) créée(s), ${j.mis_a_jour} mise(s) à jour, ${j.ignores} ignorée(s). Adresses : ${g.ok} localisées, ${g.douteux} à vérifier, ${g.introuvable} introuvables${j.geocodage_indisponible ? ". Le service de géocodage est indisponible : relancez-le plus tard." : "."}`);
     setApercu(null); setFichier(null); setColonnes(null);
-    charger();
+    if (j.premiere_date && j.premiere_date !== jour) {
+      setJour(j.premiere_date);  // l'effet de chargement recharge la liste de ce jour
+      setRapport((t) => `${t} Affichage du ${new Date(j.premiere_date).toLocaleDateString("fr-FR")}.`);
+    } else charger();
   }
 
   if (!liste) return <p className="muted">Chargement…</p>;
@@ -142,6 +145,7 @@ export default function Commandes() {
       <div className="filtres" role="group" aria-label="Afficher">
         <button className="filtre" aria-pressed={filtre === "toutes"} onClick={() => setFiltre("toutes")}>Toutes <span className="count">{liste.length}</span></button>
         <button className="filtre" aria-pressed={filtre === "verifier"} onClick={() => setFiltre("verifier")}>Adresses à vérifier <span className="count">{nbVerifier}</span></button>
+        <Info>Adresses introuvables ou douteuses : cliquez sur la carte pour placer le point à la main.</Info>
       </div>
 
       {liste.length === 0 ? (

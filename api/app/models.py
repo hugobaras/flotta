@@ -48,6 +48,64 @@ class Facture(Base):
     detail: Mapped[dict] = mapped_column(JSON)  # offre, camions, période, remise, TVA et montants figés à l'émission
 
 
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    nom: Mapped[str] = mapped_column(String(100))
+    apercu: Mapped[str] = mapped_column(String(16))  # début de la clé, pour la reconnaître sans la révéler
+    hash: Mapped[str] = mapped_column(String(64), unique=True)  # sha256 : la clé elle-même n'est jamais stockée
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    derniere_utilisation: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoquee_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Webhook(Base):
+    __tablename__ = "webhooks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    url: Mapped[str] = mapped_column(String(500))
+    secret: Mapped[str] = mapped_column(String(64))  # nécessaire pour signer : stocké en clair, montré une seule fois
+    evenements: Mapped[list] = mapped_column(JSON)
+    actif: Mapped[bool] = mapped_column(default=True, server_default=true())
+
+
+class WebhookLivraison(Base):
+    __tablename__ = "webhook_livraisons"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    webhook_id: Mapped[int] = mapped_column(ForeignKey("webhooks.id"), index=True)
+    evenement: Mapped[str] = mapped_column(String(40))
+    payload: Mapped[dict] = mapped_column(JSON)
+    statut: Mapped[str] = mapped_column(String(10), default="en_attente")  # en_attente | ok | echec
+    tentatives: Mapped[int] = mapped_column(default=0)
+    prochaine_tentative: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    derniere_erreur: Mapped[str | None] = mapped_column(String(300))
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class AuditLog(Base):
+    """Journal d'audit des actions sensibles (déblocage, suppression, changement d'offre, clés…). Jamais modifié ni purgé avec les contrôles."""
+    __tablename__ = "audit_log"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), index=True)
+    user_email: Mapped[str] = mapped_column(String(254))
+    action: Mapped[str] = mapped_column(String(60))
+    cible: Mapped[str] = mapped_column(String(200), default="")
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Signalement(Base):
+    """« Signaler un problème » : message de l'utilisateur et contexte capturé automatiquement."""
+    __tablename__ = "signalements"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    user_email: Mapped[str] = mapped_column(String(254))
+    message: Mapped[str] = mapped_column(Text)
+    contexte: Mapped[dict] = mapped_column(JSON)  # page, société, version, navigateur
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)

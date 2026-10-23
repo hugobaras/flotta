@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import geocodage, tables
+from .audit import journaliser
 from .auth import current_user
 from .db import get_db
 from .models import ColumnMapping, Order, User
@@ -190,7 +191,9 @@ def modifier(order_id: int, body: CommandePatch, user: User = Depends(current_us
 
 @router.delete("/{order_id}", status_code=204)
 def supprimer(order_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    db.delete(_commande(db, user, order_id))
+    o = _commande(db, user, order_id)
+    journaliser(db, user, "suppression_commande", o.reference)
+    db.delete(o)
     db.commit()
     return Response(status_code=204)
 
@@ -394,5 +397,6 @@ async def importer(fichier: UploadFile = File(), mapping: str = Form(), date_def
             geo_indisponible = True
     db.commit()
     comptes = {s: sum(1 for o in valides if o.geo_statut == s) for s in ("ok", "douteux", "introuvable", "a_geocoder", "manuel")}
-    return {"crees": crees, "mis_a_jour": misajour, "ignores": sum(1 for r in rapport if r["erreurs"]),
+    return {"premiere_date": min((o.date_livraison for o in valides), default=None),  # l'écran s'y positionne après l'import
+            "crees": crees, "mis_a_jour": misajour, "ignores": sum(1 for r in rapport if r["erreurs"]),
             "geocodage": comptes, "geocodage_indisponible": geo_indisponible, "lignes": _public(rapport)}

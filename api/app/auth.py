@@ -91,4 +91,5 @@ def me(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
     from . import offres
     sub = offres.abonnement(db, user.company_id)
     return {"email": user.email, "role": user.role, "offre": sub.offre if sub else "pro",
-            "fonctions": offres.fonctions(db, user.company_id)}
+            "fonctions": offres.fonctions(db, user.company_id),
+            "camions_factures": sub.camions_factures if sub else None, "statut_offre": sub.statut if sub else None}

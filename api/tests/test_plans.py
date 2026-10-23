@@ -2,7 +2,7 @@ import time
 from datetime import date
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app import matrices, plans, plans_api
 from app.models import Order, Plan, Route, RouteStop
@@ -228,6 +228,8 @@ def test_plans_are_isolated_between_companies(a, b, client, calcul):
 
 
 def test_delete_plan_removes_its_routes_and_stops(a, client, calcul):
+    with client.Session() as db:  # SQLite n'applique pas les clés étrangères par défaut, Postgres oui : on reproduit Postgres
+        db.execute(text("PRAGMA foreign_keys=ON"))
     camion(a, "AA-100-AA")
     depot(a)
     ajouter_commandes(client, 1, 3)

@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Carte, { Point, Trace } from "../../lib/Carte";
-import { Cadenas, Plaque } from "../../ui";
+import { Cadenas, Info, Plaque } from "../../ui";
 
 type Arret = { id: number; ordre: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; verrouille: boolean; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; fenetre_fin: string | null; livraison: { statut: "arrive" | "livre" | "impossible" | null; arrive_le: string | null; termine_le: string | null; motif: string | null; nom_destinataire: string | null; a_signature: boolean; photos: number[] } | null; retard_min: number | null };
 type Retard = { vehicle_id: number; plaque: string; order_id: number; reference: string; retard_min: number; message: string };
@@ -198,6 +198,7 @@ export default function Planning() {
         {termine && (
           <>
             <button className="btn" onClick={() => appeler("reoptimiser")}>Réoptimiser (hors verrouillés)</button>
+            <Info>Recalcule les tournées en gardant intactes celles que vous avez verrouillées avec le cadenas.</Info>
             <button className="btn btn-ghost" disabled={!plan!.peut_annuler} onClick={() => appeler("annuler")}>Annuler</button>
             <button className="btn btn-ghost" disabled={!plan!.peut_retablir} onClick={() => appeler("retablir")}>Rétablir</button>
             <button className="btn btn-ghost" onClick={enregistrerVersion}>Enregistrer une version</button>

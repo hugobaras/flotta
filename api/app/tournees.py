@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import livraisons, notifications, photos
+from . import webhooks, livraisons, notifications, photos
 from .auth import current_user
 from .db import get_db
 from .models import Driver, LivraisonEvenement, LivraisonPhoto, Order, Plan, PlanLien, Route, RouteStop, User, Vehicle
@@ -58,6 +58,7 @@ def publier(plan_id: int, background: BackgroundTasks, user: User = Depends(curr
             db.add(PlanLien(token=secrets.token_urlsafe(24), company_id=plan.company_id, plan_id=plan.id, vehicle_id=r.vehicle_id))
     db.commit()
     liens = _liens(db, plan)
+    webhooks.declencher(db, plan.company_id, "plan.publie", {"plan_id": plan.id, "jour": plan.jour.isoformat(), "nb_tournees": len(routes)})
     if notifications.brevo_configured():
         for l in liens:
             if l["email"]:
@@ -198,6 +199,9 @@ def evenement(token: str, body: EvenementIn, response: Response, db: Session = D
             raise
         response.status_code = 200
         return _sortie_evenement(deja)
+    if body.statut == "livre":
+        webhooks.declencher(db, plan.company_id, "arret.livre", {"plan_id": plan.id, "commande_id": commande.id, "reference": commande.reference,
+                                                                "plaque": vehicle.plaque, "fait_le": e.fait_le.isoformat()})
     return _sortie_evenement(e)
 
 

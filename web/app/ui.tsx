@@ -31,6 +31,15 @@ export function Brand({ href }: { href?: string }) {
   return href ? <a className="brand" href={href}>{contenu}</a> : <div className="brand">{contenu}</div>;
 }
 
+export function Info({ children }: { children: React.ReactNode }) {
+  return (
+    <details className="info">
+      <summary aria-label="Aide">?</summary>
+      <span role="note">{children}</span>
+    </details>
+  );
+}
+
 export function Coche({ ok }: { ok: boolean }) {
   return (
     <svg className={`coche ${ok ? "coche-ok" : "coche-ko"}`} viewBox="0 0 16 16" width="16" height="16" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={ok ? "Conforme" : "Défaut"}>
@@ -56,11 +65,13 @@ export function Chevron({ sens }: { sens: "haut" | "bas" }) {
   );
 }
 
-export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" }) {
+export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" | "integrations" | "offre" }) {
   return (
     <nav className="filtres" aria-label="Réglages">
       <a className="filtre" href="/admin/checklists" aria-current={actif === "checklists" ? "page" : undefined} style={{ textDecoration: "none" }}>Checklists</a>
       <a className="filtre" href="/admin/parametres" aria-current={actif === "parametres" ? "page" : undefined} style={{ textDecoration: "none" }}>Alertes et société</a>
+      <a className="filtre" href="/admin/integrations" aria-current={actif === "integrations" ? "page" : undefined} style={{ textDecoration: "none" }}>Intégrations</a>
+      <a className="filtre" href="/admin/offre" aria-current={actif === "offre" ? "page" : undefined} style={{ textDecoration: "none" }}>Mon offre</a>
     </nav>
   );
 }

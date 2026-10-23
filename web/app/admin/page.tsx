@@ -6,6 +6,7 @@ import { dateHeure, Etat, Macaron, Plaque, Statut } from "../ui";
 
 type Ligne = { vehicle_id: number; plaque: string; statut: Statut; controle: { id: number; conducteur: string; created_at: string } | null };
 type Rappels = { heure_rappel: string; vehicules: { id: number; plaque: string }[] };
+type Journee = { commandes: number; aPlanifier: number; plan: { id: number; statut: string; resume: { nb_tournees: number; nb_commandes: number; nb_non_affectees: number; km: number; nb_alertes: number } | null } | null };
 type Filtre = "traiter" | "controle" | "tous";
 
 const aujourdhui = () => new Date().toLocaleDateString("sv-SE"); // AAAA-MM-JJ, jour local
@@ -16,6 +17,7 @@ export default function Admin() {
   const [date, setDate] = useState(aujourdhui);
   const [lignes, setLignes] = useState<Ligne[] | null>(null);
   const [rappels, setRappels] = useState<Rappels | null>(null);
+  const [journee, setJournee] = useState<Journee | null>(null);
   const [filtre, setFiltre] = useState<Filtre>("traiter");
   const [ouvert, setOuvert] = useState<number | null>(null);
   const [motif, setMotif] = useState("");
@@ -26,6 +28,14 @@ export default function Admin() {
     if (r.status === 401) return (window.location.href = "/connexion");
     setLignes((await r.json()).vehicules);
     setRappels(await (await fetch("/api/admin/rappels")).json());
+    const [c, p] = await Promise.all([fetch(`/api/admin/commandes?date=${date}`), fetch("/api/admin/plans")]);
+    if (c.ok && p.ok) {
+      const cmds: { statut: string }[] = await c.json();
+      // Le plan que suivent les chauffeurs (publié) d'abord, sinon le dernier calculé, sinon le dernier tenté.
+      const du_jour: (NonNullable<Journee["plan"]> & { jour: string; publie_le: string | null })[] = (await p.json()).filter((x: { jour: string }) => x.jour === date);
+      const plan = du_jour.find((x) => x.publie_le) ?? du_jour.find((x) => x.statut === "termine") ?? du_jour[0] ?? null;
+      setJournee({ commandes: cmds.length, aPlanifier: cmds.filter((x) => x.statut === "a_planifier").length, plan });
+    }
   }, [date]);
 
   useEffect(() => {
@@ -73,6 +83,22 @@ export default function Admin() {
         <div className="notice" role="status">
           <span><strong>{rappels.vehicules.length} camion{rappels.vehicules.length > 1 ? "s" : ""} sans contrôle depuis {rappels.heure_rappel}</strong> : {rappels.vehicules.map((v) => v.plaque).join(", ")}</span>
         </div>
+      )}
+
+      {journee && (
+        <section aria-label="Livraisons du jour" style={{ marginBottom: 28 }}>
+          {journee.commandes === 0 ? (
+            <p className="muted">Aucune commande ce jour. <Link href="/admin/commandes">Importer des commandes</Link></p>
+          ) : (
+            <dl className="indicateurs" style={{ marginBottom: 8 }}>
+              <div><dt>Commandes</dt><dd className="num">{journee.commandes}</dd></div>
+              <div><dt>Tournées</dt><dd className="num">{journee.plan?.resume?.nb_tournees ?? "—"}</dd></div>
+              <div><dt>Non affectées</dt><dd className="num">{journee.plan?.resume ? journee.plan.resume.nb_non_affectees : journee.aPlanifier}</dd></div>
+              <div><dt>Alertes du plan</dt><dd className="num">{journee.plan?.resume?.nb_alertes ?? "—"}</dd></div>
+            </dl>
+          )}
+          {journee.commandes > 0 && <p className="hint">{journee.plan ? <Link href="/admin/planning">Ouvrir le planning</Link> : <>Pas encore de plan : <Link href="/admin/planning">lancer l'optimisation</Link></>} · <Link href="/admin/commandes">Voir les commandes</Link></p>}
+        </section>
       )}
 
       <div className="filtres" role="group" aria-label="Afficher">

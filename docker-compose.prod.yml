@@ -1,0 +1,104 @@
+# Production : `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`
+# Seuls les ports 80 et 443 (Caddy) sont ouverts ; base, Redis, API et front restent sur le réseau interne.
+x-api-env: &api-env
+  DATABASE_URL: postgresql+psycopg://transport:${POSTGRES_PASSWORD:?à définir}@db/transport
+  REDIS_URL: redis://redis:6379/0
+  UPLOAD_DIR: /data/uploads
+  VALHALLA_URL: ${VALHALLA_URL:-http://valhalla:8002}
+  BREVO_API_KEY: ${BREVO_API_KEY:-}
+  BREVO_SENDER: ${BREVO_SENDER:-}
+  APP_URL: https://${DOMAINE:?à définir}
+  COOKIE_SECURE: "1"
+  TRUSTED_PROXY: "1"
+  LOG_JSON: "1"
+  PIN_SECRET: ${PIN_SECRET:?à définir}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  VENDEUR_NOM: ${VENDEUR_NOM:-}
+  VENDEUR_ADRESSE: ${VENDEUR_ADRESSE:-}
+  VENDEUR_SIREN: ${VENDEUR_SIREN:-}
+  VENDEUR_TVA: ${VENDEUR_TVA:-}
+  VENDEUR_IBAN: ${VENDEUR_IBAN:-}
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAINE: ${DOMAINE:?à définir}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: transport
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?à définir}
+      POSTGRES_DB: transport
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transport"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment: *api-env
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status == 200 else 1)"]
+      interval: 30s
+      retries: 3
+
+  worker:
+    build: ./api
+    restart: unless-stopped
+    command: celery -A app.worker.celery worker -B -l info
+    environment: *api-env
+    volumes: [uploads:/data/uploads]
+    depends_on: [api, redis]
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+    depends_on: [api]
+
+  backup:
+    build: ./backup
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: transport
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: transport
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-}
+      AWS_DEFAULT_REGION: ${S3_REGION:-fr-par}
+      HEURE_SAUVEGARDE: ${HEURE_SAUVEGARDE:-02:30}
+    volumes:
+      - uploads:/data/uploads:ro
+      - backups:/backups
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  uploads:
+  backups:
+  caddy_data:
+  caddy_config:

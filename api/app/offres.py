@@ -5,7 +5,7 @@ REMISE_ANNUELLE_PCT et TVA_PCT. Les montants sont en centimes pour éviter les e
 import json
 import os
 
-from fastapi import Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -15,8 +15,12 @@ from .models import Subscription, User
 
 PRO = ["conduite", "temps_reel", "api", "stats"]
 DEFAUT = {
-    "essentiel": {"nom": "Essentiel", "prix_eur": 45, "minimum_eur": 500, "utilisateurs": 2, "fonctions": []},
-    "pro": {"nom": "Pro", "prix_eur": 75, "minimum_eur": 900, "utilisateurs": None, "fonctions": PRO},
+    "essentiel": {"nom": "Essentiel", "prix_eur": 45, "minimum_eur": 500, "utilisateurs": 2, "fonctions": [],
+                  "inclus": ["Contrôle avant départ sur téléphone (QR code, sans application)", "Alertes et blocage du camion sur défaut critique",
+                             "Routage poids lourd et optimisation des tournées", "Plan du chauffeur sur téléphone, suivi en direct", "2 utilisateurs exploitants"]},
+    "pro": {"nom": "Pro", "prix_eur": 75, "minimum_eur": 900, "utilisateurs": None, "fonctions": PRO,
+            "inclus": ["Tout ce qui est dans l'offre Essentiel", "Temps de conduite légal (CE 561/2006) intégré aux tournées", "Temps réel : retards prévus et replanification validée par vous",
+                       "API publique et webhooks signés", "Utilisateurs exploitants illimités"]},
 }
 
 
@@ -72,3 +76,14 @@ def place_utilisateur(db: Session, company_id: int) -> bool:
     limite = grille()[s.offre]["utilisateurs"] if s else None
     nb = db.scalar(select(func.count()).select_from(User).where(User.company_id == company_id, User.role != "plateforme"))
     return limite is None or nb < limite
+
+
+router = APIRouter(prefix="/api")
+
+
+@router.get("/offres")
+def offres_publiques():
+    """Grille tarifaire publique (page d'accueil, « Mon offre »). Prix HT, par camion et par mois."""
+    return {"offres": [{"id": k, "nom": v["nom"], "prix_eur": v["prix_eur"], "minimum_eur": v["minimum_eur"], "inclus": v.get("inclus", [])}
+                       for k, v in grille().items()],
+            "remise_annuelle_pct": remise_annuelle_pct()}

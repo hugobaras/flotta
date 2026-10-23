@@ -82,6 +82,13 @@ def test_publication_requires_login_and_a_finished_plan(a, client, decor):
     assert publier(a, en_attente).status_code == 409
 
 
+def test_plan_list_tells_which_plan_is_published(a, decor):
+    avant = a.get("/api/admin/plans").json()
+    assert all(p["publie_le"] is None for p in avant)
+    publier(a, decor["plan"])
+    assert {p["id"]: p["publie_le"] is not None for p in a.get("/api/admin/plans").json()}[decor["plan"]] is True
+
+
 def test_publish_creates_a_personal_link_per_route(a, decor):
     r = publier(a, decor["plan"])
     assert r.status_code == 200 and r.json()["publie_le"]
