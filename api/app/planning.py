@@ -134,10 +134,13 @@ def _chemin(lignes: list[int], rotations: list[int]) -> list[int]:
     return chemin + [0]
 
 
-def _parcours(ctx: Contexte, cmds: list[CommandeInfo], lignes: list[int], rotations: list[int], dur, debut: float, chrono: "reg.Chrono"):
+def _parcours(ctx: Contexte, cmds: list[CommandeInfo], lignes: list[int], rotations: list[int], dur, debut: float, chrono: "reg.Chrono",
+              delais: dict[int, float] | None = None):
     """Parcourt la tournée à partir de `debut` (minutes) : trajets avec pauses obligatoires, attentes de fenêtre, services.
-    Entre deux rotations : retour au dépôt, rechargement (compté comme autre tâche, jamais comme une pause), nouveau départ."""
-    p = reg.demarrer(debut, chrono)
+    Entre deux rotations : retour au dépôt, rechargement (compté comme autre tâche, jamais comme une pause), nouveau départ.
+    `delais` : minutes d'attente supplémentaire au dépôt avant de partir, par rotation (la 1re s'ajoute à `debut`)."""
+    delais = delais or {}
+    p = reg.demarrer(debut + delais.get(rotations[0], 0.0), chrono)
     arrets, passages_depot = [], []  # passages_depot : (rotation terminée, retour, sortie)
     prec = 0
     for k, c in enumerate(cmds):
@@ -145,6 +148,8 @@ def _parcours(ctx: Contexte, cmds: list[CommandeInfo], lignes: list[int], rotati
             reg.conduire(p, dur[prec][0] / 60)
             retour = p.t
             reg.travailler(p, ctx.rechargement_min)
+            if delais.get(rotations[k]):
+                reg.attendre(p, delais[rotations[k]])
             passages_depot.append((rotations[k - 1], retour, p.t))
             prec = 0
         reg.conduire(p, dur[prec][lignes[k]] / 60)
@@ -180,10 +185,24 @@ def calculer_route(ctx: Contexte, vehicule_id: int, commande_ids: list[int], con
     debut = float(ctx.ouverture_min)
     if restant:  # repos journalier à respecter avant de reprendre
         debut = max(debut, restant.debut_possible - ctx.minuit)
-    p, arrets, depot = _parcours(ctx, cmds, lignes, rotations, dur, debut, chrono())
-    if arrets[0].attente_min > 0:  # départ retardé pour supprimer l'attente avant le premier arrêt (le reste de la journée ne change pas)
-        debut += arrets[0].attente_min
-        p, arrets, depot = _parcours(ctx, cmds, lignes, rotations, dur, debut, chrono())
+    # Départ retardé pour ne pas attendre devant un client : on retarde la sortie du dépôt de la rotation concernée (la 1re : le départ du
+    # camion) de la durée de l'attente, sans jamais faire fermer la fenêtre d'un arrêt qui précède. Le reste de la journée ne change pas.
+    delais: dict[int, float] = {}
+    p, arrets, depot = _parcours(ctx, cmds, lignes, rotations, dur, debut, chrono(), delais)
+    for _ in range(len(cmds) + 1):
+        for k, a in enumerate(arrets):
+            if a.attente_min <= 1e-6:
+                continue
+            marge = min((cmds[j].fin_min - arrets[j].arrivee_min for j in range(k) if rotations[j] == rotations[k] and cmds[j].fin_min is not None),
+                        default=float("inf"))
+            decalage = min(a.attente_min, marge)
+            if decalage > 1e-6:
+                delais[rotations[k]] = delais.get(rotations[k], 0.0) + decalage
+                p, arrets, depot = _parcours(ctx, cmds, lignes, rotations, dur, debut, chrono(), delais)
+                break
+        else:
+            break
+    debut += delais.get(rotations[0], 0.0)
     alertes: list[Alerte] = []
     chemin = _chemin(lignes, rotations)
     trajet = sum(dur[a][b] for a, b in zip(chemin, chemin[1:]))

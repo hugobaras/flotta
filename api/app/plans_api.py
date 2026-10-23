@@ -65,7 +65,7 @@ def creer(body: PlanIn, user: User = Depends(current_user), db: Session = Depend
 def lister(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(Plan).where(Plan.company_id == user.company_id).order_by(Plan.id.desc()).limit(50))
     return [{"id": p.id, "jour": p.jour, "statut": p.statut, "progression": p.progression, "resume": p.resume,
-             "created_at": p.created_at, "publie_le": p.publie_le} for p in rows]
+             "created_at": p.created_at, "publie_le": p.publie_le, "archive": p.archive_le is not None, "nom": p.nom} for p in rows]
 
 
 @router.get("/{plan_id}")

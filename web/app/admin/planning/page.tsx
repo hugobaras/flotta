@@ -17,7 +17,7 @@ type Alerte = { type: string; message: string; route_vehicle_id: number; command
 type Plan = {
   id: number; jour: string; statut: "en_attente" | "en_cours" | "termine" | "echec"; progression: number; message: string | null; nom: string | null;
   resume: (Indic & { vehicules_exclus: { plaque: string; raison: string }[] }) | null; reference: Indic | null; routes: Tournee[]; non_affectees: NonAffectee[];
-  parametres?: { rotations_max?: number }; alertes: Alerte[]; conducteurs: ConducteurInfo[]; publie_le: string | null; avancement: { total: number; livrees: number; impossibles: number; sur_place: number; en_retard: number } | null; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string }[];
+  parametres?: { rotations_max?: number }; alertes: Alerte[]; conducteurs: ConducteurInfo[]; publie_le: string | null; avancement: { total: number; livrees: number; impossibles: number; sur_place: number; en_retard: number } | null; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string; archive?: boolean; publie?: boolean }[];
 };
 
 const COULEURS = ["#111418", "#e5560a", "#1a7f4b", "#2b6cb0", "#8a3ffc", "#c77700", "#d3281b", "#0f8b8d"];
@@ -69,8 +69,9 @@ export default function Planning() {
     (async () => {
       const r = await fetch("/api/admin/plans");
       if (r.status === 401) return (window.location.href = "/connexion");
-      const liste: { id: number; jour: string }[] = await r.json();
-      const dernier = liste.find((p) => p.jour === jour);
+      const liste: { id: number; jour: string; archive: boolean; statut: string }[] = await r.json();
+      const du_jour = liste.filter((p) => p.jour === jour);
+      const dernier = du_jour.find((p) => !p.archive && p.statut !== "echec") ?? du_jour[0];  // le plus récent des calculs en cours, sinon un ancien
       if (dernier) lire(dernier.id);
     })();
     return () => { if (minuteur.current) clearTimeout(minuteur.current); };
@@ -213,7 +214,11 @@ export default function Planning() {
             <button className="btn" onClick={publier}>{plan!.publie_le ? "Liens des chauffeurs" : "Publier aux chauffeurs"}</button>
             {plan!.versions.length > 1 && (
               <select className="select" style={{ width: "auto" }} aria-label="Version du plan" value={plan!.id} onChange={(e) => lire(Number(e.target.value))}>
-                {plan!.versions.map((v) => <option key={v.id} value={v.id}>{v.nom ?? "Plan optimisé"} · {new Date(v.created_at).toLocaleTimeString("fr-FR", { timeStyle: "short" })}</option>)}
+                {[false, true].map((archive) => {
+                  const liste = plan!.versions.filter((v) => !!v.archive === archive);
+                  const options = liste.map((v) => <option key={v.id} value={v.id}>{v.nom ?? "Plan optimisé"}{v.publie ? " · publié" : ""} · {new Date(v.created_at).toLocaleTimeString("fr-FR", { timeStyle: "short" })}</option>);
+                  return !liste.length ? null : archive ? <optgroup key="a" label="Anciens calculs">{options}</optgroup> : options;
+                })}
               </select>
             )}
           </>
