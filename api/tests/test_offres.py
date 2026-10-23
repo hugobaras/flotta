@@ -97,3 +97,10 @@ def test_place_utilisateur_essentiel(client):
         db.add(User(company_id=cid, email="x@a.fr", password_hash="x"))
         db.commit()
         assert not offres.place_utilisateur(db, cid)
+
+
+def test_grille_publique_sans_connexion(client):
+    r = client.get("/api/offres")
+    assert r.status_code == 200
+    o = {x["id"]: x for x in r.json()["offres"]}
+    assert (o["essentiel"]["prix_eur"], o["pro"]["prix_eur"], o["pro"]["minimum_eur"]) == (45, 75, 900) and o["pro"]["inclus"]
