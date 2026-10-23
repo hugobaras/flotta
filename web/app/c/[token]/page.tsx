@@ -5,7 +5,7 @@ import { enAttente, envoyerUn, mettreEnFile, transitoire, viderLaFile } from "..
 import { BandeauPublic, Etat, Macaron, Plaque } from "../../ui";
 
 type Item = { id: number; libelle: string; critique: boolean };
-type Controle = { plaque: string; bloque: boolean; checklist: Item[] };
+type Controle = { plaque: string; bloque: boolean; checklist: Item[]; tournee_token?: string | null };
 type Resultat = { bloque: boolean; photosManquantes: number; enAttente?: boolean };
 type Identite = { nom: string; badge: string; expire: number };
 
@@ -117,6 +117,7 @@ export default function Controle({ params }: { params: Promise<{ token: string }
                 : resultat.bloque ? "Un défaut critique a été signalé. Ne prenez pas la route et prévenez votre exploitant." : "Vous pouvez prendre la route. Bonne journée."}
             </p>
             {resultat.photosManquantes > 0 && <p className="muted">{resultat.photosManquantes} photo(s) n'ont pas pu être envoyées.</p>}
+            {data.tournee_token && !resultat.bloque && <a className="btn btn-primary btn-xl" href={`/t/${data.tournee_token}`}>Voir ma tournée du jour</a>}
           </div>
         </main>
       </>
@@ -259,6 +260,7 @@ export default function Controle({ params }: { params: Promise<{ token: string }
             {data.bloque && <Etat statut="bloque" />}
           </div>
           <h1>Contrôle avant départ</h1>
+          {data.tournee_token && !data.bloque && <p style={{ marginBottom: 16 }}><a href={`/t/${data.tournee_token}`}>Ma tournée du jour</a> (s'ouvre une fois le contrôle fait)</p>}
           {data.bloque && (
             <div className="notice danger" role="alert">
               <span><strong>Ce camion est bloqué.</strong> Un nouveau contrôle ne le débloque pas : contactez votre exploitant.</span>

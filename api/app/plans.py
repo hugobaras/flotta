@@ -282,7 +282,8 @@ def ecrire_etat(db: Session, plan: Plan, etat: dict):
     plan.non_affectees = etat["non_affectees"]
     tous = en_route | {n["order_id"] for n in etat["non_affectees"]}
     for o in db.scalars(select(Order).where(Order.company_id == plan.company_id, Order.id.in_(tous))):
-        o.statut = "planifie" if o.id in en_route else "a_planifier"
+        if o.statut not in ("livre", "echec"):  # une livraison déjà constatée ne revient jamais en arrière
+            o.statut = "planifie" if o.id in en_route else "a_planifier"
     resume = dict(plan.resume or {})
     resume.update(planning.indicateurs(calculees, len(etat["non_affectees"]), _capacite_totale(ctx, etat)))
     resume["nb_commandes"] = len(tous)
@@ -426,6 +427,8 @@ def detail(db: Session, plan: Plan) -> dict:
         return {"reference": o.reference, "client": o.client, "adresse": o.adresse, "lat": o.lat, "lng": o.lng, "poids_kg": o.poids_kg,
                 "palettes": o.palettes, "fenetre_debut": o.fenetre_debut, "fenetre_fin": o.fenetre_fin, "duree_service_min": o.duree_service_min} if o else {}
 
+    from . import livraisons
+    suivi = livraisons.derniers_evenements(db, plan.id) if plan.publie_le else {}
     sortie_routes = []
     for r in routes:
         arrets = list(db.scalars(select(RouteStop).where(RouteStop.route_id == r.id).order_by(RouteStop.ordre)))
@@ -435,10 +438,14 @@ def detail(db: Session, plan: Plan) -> dict:
             "charge_m3": r.charge_m3, "verrouille": r.verrouille, "conducteur_id": r.conducteur_id, "conduite_min": r.conduite_min,
             "pauses": r.pauses or [],
             "arrets": [{"id": s.id, "ordre": s.ordre, "order_id": s.order_id, "arrivee_min": s.arrivee_min, "depart_min": s.depart_min,
-                        "attente_min": s.attente_min, "verrouille": s.verrouille, **cmd(commandes.get(s.order_id))} for s in arrets]})
+                        "attente_min": s.attente_min, "verrouille": s.verrouille, **cmd(commandes.get(s.order_id)),
+                        "livraison": suivi.get(s.order_id),
+                        "retard_min": livraisons.retard_min(s.arrivee_min, (suivi.get(s.order_id) or {}).get("statut"), plan.jour) if plan.publie_le else None}
+                       for s in arrets]})
     out = {"id": plan.id, "jour": plan.jour, "statut": plan.statut, "progression": plan.progression, "message": plan.message, "nom": plan.nom,
            "parametres": plan.parametres, "resume": plan.resume, "created_at": plan.created_at, "routes": sortie_routes,
            "non_affectees": [{**n, **cmd(commandes.get(n["order_id"]))} for n in plan.non_affectees],
+           "publie_le": plan.publie_le, "avancement": None,
            "alertes": [], "reference": None, "peut_annuler": False, "peut_retablir": False, "versions": [], "conducteurs": []}
     if plan.statut == "termine" and plan.matrices:
         ctx = contexte(db, plan)
@@ -458,6 +465,13 @@ def detail(db: Session, plan: Plan) -> dict:
             c = next((x for x in _calculer(ctx, etat) if x.vehicule_id == r["vehicle_id"]), None)
             r["plafond_conduite_min"] = c.plafond_conduite_min if c else None
             r["conduite_restante_min"] = round(c.plafond_conduite_min - c.conduite_min) if c else None
+    if plan.publie_le:
+        arrets = [a for r in out["routes"] for a in r["arrets"]]
+        statut = lambda a: (a["livraison"] or {}).get("statut")  # noqa: E731
+        out["avancement"] = {"total": len(arrets), "livrees": sum(1 for a in arrets if statut(a) == "livre"),
+                             "impossibles": sum(1 for a in arrets if statut(a) == "impossible"),
+                             "sur_place": sum(1 for a in arrets if statut(a) == "arrive"),
+                             "en_retard": sum(1 for a in arrets if a["retard_min"])}
     autres = db.scalars(select(Plan).where(Plan.company_id == plan.company_id, Plan.jour == plan.jour, Plan.statut == "termine").order_by(Plan.id))
     out["versions"] = [{"id": p.id, "nom": p.nom, "created_at": p.created_at} for p in autres]
     return out

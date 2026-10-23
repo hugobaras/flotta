@@ -1,7 +1,7 @@
 // File d'attente des contrôles faits sans réseau : IndexedDB (les photos sont trop lourdes pour localStorage).
 // Chaque envoi porte un client_id : le rejouer côté serveur ne crée jamais de doublon.
 
-export type Envoi = { client_id: string; token: string; payload: Record<string, unknown>; photos: Blob[]; cree: number };
+export type Envoi = { client_id: string; token: string; payload: Record<string, unknown>; photos: Blob[]; cree: number; type?: "controle" | "livraison" };
 
 const BASE = "flotta";
 const STORE = "envois";
@@ -33,7 +33,8 @@ export const transitoire = (e: unknown, statut?: number) => e instanceof TypeErr
 
 /** Envoie un contrôle puis ses photos. Renvoie la réponse du serveur ou lève en cas d'échec transitoire. */
 export async function envoyerUn(e: Envoi): Promise<{ id: number; bloque: boolean; photosManquantes: number }> {
-  const r = await fetch(`/api/controle/${e.token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...e.payload, client_id: e.client_id }) });
+  const livraison = e.type === "livraison";
+  const r = await fetch(livraison ? `/api/tournee/${e.token}/evenements` : `/api/controle/${e.token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...e.payload, client_id: e.client_id }) });
   if (!r.ok) throw Object.assign(new Error("refusé"), { statut: r.status });
   const j = await r.json();
   let manque = 0;
@@ -41,12 +42,12 @@ export async function envoyerUn(e: Envoi): Promise<{ id: number; bloque: boolean
     const form = new FormData();
     form.append("photo", f);
     try {
-      if (!(await fetch(`/api/controle/${e.token}/${j.id}/photos`, { method: "POST", body: form })).ok) manque++;
+      if (!(await fetch(livraison ? `/api/tournee/${e.token}/evenements/${j.id}/photos` : `/api/controle/${e.token}/${j.id}/photos`, { method: "POST", body: form })).ok) manque++;
     } catch {
       manque++;
     }
   }
-  return { id: j.id, bloque: j.bloque, photosManquantes: manque };
+  return { id: j.id, bloque: !!j.bloque, photosManquantes: manque };
 }
 
 /** Vide la file dans l'ordre. S'arrête au premier échec transitoire ; abandonne les envois refusés pour de bon (4xx). */

@@ -78,6 +78,7 @@ class Driver(Base):
     pin_hash: Mapped[str] = mapped_column(String(64))
     vehicule_habituel_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"))
     actif: Mapped[bool] = mapped_column(default=True, server_default=true())
+    email: Mapped[str | None] = mapped_column(String(254))  # pour lui envoyer le lien de sa tournée
     __table_args__ = (UniqueConstraint("company_id", "pin_hash", name="uq_driver_pin"),)
 
 
@@ -187,6 +188,9 @@ class Order(Base):
     frigo: Mapped[bool] = mapped_column(default=False, server_default=false())
     adr: Mapped[bool] = mapped_column(default=False, server_default=false())
     hayon: Mapped[bool] = mapped_column(default=False, server_default=false())
+    contact_nom: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    contact_telephone: Mapped[str] = mapped_column(String(30), default="", server_default="")
+    consignes: Mapped[str] = mapped_column(String(500), default="", server_default="")  # accès, code porte, quai...
     date_livraison: Mapped[date] = mapped_column(Date, index=True)
     statut: Mapped[str] = mapped_column(String(20), default="a_planifier", server_default="a_planifier")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -230,6 +234,7 @@ class Plan(Base):
     nom: Mapped[str | None] = mapped_column(String(100))  # nom de la version enregistrée
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"))  # plan dont cette version est copiée
     curseur: Mapped[int] = mapped_column(default=0, server_default="0")  # position dans l'historique des modifications
+    publie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # tournées visibles par les chauffeurs
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -286,3 +291,43 @@ class ActiviteConducteur(Base):
     type: Mapped[str] = mapped_column(String(20))  # conduite | travail | disponibilite | repos
     debut: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     fin: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PlanLien(Base):
+    """Lien personnel d'une tournée : le jeton donne accès à la tournée d'un véhicule dans un plan, sans compte."""
+    __tablename__ = "plan_links"
+    token: Mapped[str] = mapped_column(String(40), primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), index=True)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"))
+    __table_args__ = (UniqueConstraint("plan_id", "vehicle_id", name="uq_link_plan_vehicle"),)
+
+
+class LivraisonEvenement(Base):
+    """Changement de statut d'un arrêt (arrivé, livré, impossible), envoyé par le téléphone du chauffeur. Journal sans modification."""
+    __tablename__ = "delivery_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"))
+    statut: Mapped[str] = mapped_column(String(20))  # arrive | livre | impossible
+    client_id: Mapped[str | None] = mapped_column(String(64))
+    fait_le: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # heure réelle (téléphone si plausible)
+    recu_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    lat: Mapped[float | None] = mapped_column(Float)
+    lng: Mapped[float | None] = mapped_column(Float)
+    motif: Mapped[str | None] = mapped_column(String(40))
+    commentaire: Mapped[str | None] = mapped_column(String(300))
+    nom_destinataire: Mapped[str | None] = mapped_column(String(100))
+    signature: Mapped[str | None] = mapped_column(Text)  # data URL PNG
+    __table_args__ = (UniqueConstraint("company_id", "client_id", name="uq_delivery_client"),)
+
+
+class LivraisonPhoto(Base):
+    __tablename__ = "delivery_photos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    evenement_id: Mapped[int] = mapped_column(ForeignKey("delivery_events.id"), index=True)
+    fichier: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

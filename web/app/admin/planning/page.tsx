@@ -4,7 +4,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Carte, { Point, Trace } from "../../lib/Carte";
 import { Cadenas, Plaque } from "../../ui";
 
-type Arret = { id: number; ordre: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; verrouille: boolean; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; fenetre_fin: string | null };
+type Arret = { id: number; ordre: number; order_id: number; arrivee_min: number; depart_min: number; attente_min: number; verrouille: boolean; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; fenetre_fin: string | null; livraison: { statut: "arrive" | "livre" | "impossible" | null; arrive_le: string | null; termine_le: string | null; motif: string | null; nom_destinataire: string | null; a_signature: boolean; photos: number[] } | null; retard_min: number | null };
+type Lien = { vehicle_id: number; plaque: string; url: string; conducteur: string | null; email: string | null };
 type Tournee = { id: number; vehicle_id: number; plaque: string; depart_min: number; retour_min: number; distance_km: number; charge_kg: number; charge_palettes: number; verrouille: boolean; arrets: Arret[]; conducteur_id: number | null; conduite_min: number; pauses: [number, number][]; plafond_conduite_min: number | null; conduite_restante_min: number | null };
 type ConducteurInfo = { id: number; nom: string; vehicle_id: number | null; conduite_jour_min: number; conduite_jour_normale_min: number; conduite_semaine_min: number; extensions_restantes: number; debut_possible_min: number };
 type NonAffectee = { order_id: number; reference?: string; adresse?: string; raison: string };
@@ -13,7 +14,7 @@ type Alerte = { type: string; message: string; route_vehicle_id: number; command
 type Plan = {
   id: number; jour: string; statut: "en_attente" | "en_cours" | "termine" | "echec"; progression: number; message: string | null; nom: string | null;
   resume: (Indic & { vehicules_exclus: { plaque: string; raison: string }[] }) | null; reference: Indic | null; routes: Tournee[]; non_affectees: NonAffectee[];
-  alertes: Alerte[]; conducteurs: ConducteurInfo[]; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string }[];
+  alertes: Alerte[]; conducteurs: ConducteurInfo[]; publie_le: string | null; avancement: { total: number; livrees: number; impossibles: number; sur_place: number; en_retard: number } | null; peut_annuler: boolean; peut_retablir: boolean; versions: { id: number; nom: string | null; created_at: string }[];
 };
 
 const COULEURS = ["#111418", "#e5560a", "#1a7f4b", "#2b6cb0", "#8a3ffc", "#c77700", "#d3281b", "#0f8b8d"];
@@ -36,6 +37,9 @@ export default function Planning() {
   const [tempsMax, setTempsMax] = useState(10);
   const [glisse, setGlisse] = useState<number | null>(null);
   const [sur, setSur] = useState<string | null>(null);
+  const [liens, setLiens] = useState<Lien[] | null>(null);
+  const [copie, setCopie] = useState("");
+  const dialogueLiens = useRef<HTMLDialogElement>(null);
   const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lire = useCallback(async (id: number) => {
@@ -70,12 +74,34 @@ export default function Planning() {
     else setPlan(j);
   }
 
+  async function publier() {
+    setErreur("");
+    const r = await fetch(`/api/admin/plans/${plan!.id}/publier`, { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setErreur(typeof j.detail === "string" ? j.detail : "Publication impossible.");
+    setLiens(j.liens);
+    dialogueLiens.current?.showModal();
+    lire(plan!.id);
+  }
+
+  async function copier(url: string) {
+    try { await navigator.clipboard.writeText(url); setCopie(url); } catch { window.prompt("Copiez ce lien", url); }
+  }
+
+  // Tournées publiées : le suivi des livraisons se rafraîchit seul toutes les 30 secondes.
+  useEffect(() => {
+    if (!plan?.publie_le || plan.statut !== "termine") return;
+    const id = plan.id;
+    const t = setInterval(() => lire(id), 30000);
+    return () => clearInterval(t);
+  }, [plan?.id, plan?.publie_le, plan?.statut, lire]);
+
   async function optimiser() {
     setErreur("");
     const r = await fetch("/api/admin/plans", { method: "POST", headers: json, body: JSON.stringify({ jour, temps_max_s: tempsMax }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return setErreur(typeof j.detail === "string" ? j.detail : "Impossible de lancer le calcul.");
-    setPlan({ id: j.id, jour, statut: "en_attente", progression: 0, message: null, nom: null, resume: null, reference: null, routes: [], non_affectees: [], alertes: [], conducteurs: [], peut_annuler: false, peut_retablir: false, versions: [] });
+    setPlan({ id: j.id, jour, statut: "en_attente", progression: 0, message: null, nom: null, resume: null, reference: null, routes: [], non_affectees: [], alertes: [], conducteurs: [], publie_le: null, avancement: null, peut_annuler: false, peut_retablir: false, versions: [] });
     lire(j.id);
   }
 
@@ -126,6 +152,7 @@ export default function Planning() {
             <button className="btn btn-ghost" disabled={!plan!.peut_annuler} onClick={() => appeler("annuler")}>Annuler</button>
             <button className="btn btn-ghost" disabled={!plan!.peut_retablir} onClick={() => appeler("retablir")}>Rétablir</button>
             <button className="btn btn-ghost" onClick={enregistrerVersion}>Enregistrer une version</button>
+            <button className="btn" onClick={publier}>{plan!.publie_le ? "Liens des chauffeurs" : "Publier aux chauffeurs"}</button>
             {plan!.versions.length > 1 && (
               <select className="select" style={{ width: "auto" }} aria-label="Version du plan" value={plan!.id} onChange={(e) => lire(Number(e.target.value))}>
                 {plan!.versions.map((v) => <option key={v.id} value={v.id}>{v.nom ?? "Plan optimisé"} · {new Date(v.created_at).toLocaleTimeString("fr-FR", { timeStyle: "short" })}</option>)}
@@ -155,6 +182,14 @@ export default function Planning() {
             <div><dt>Non affectées</dt><dd>{plan!.resume.nb_non_affectees}<Delta valeur={plan!.resume.nb_non_affectees} ref={ref?.nb_non_affectees} /></dd></div>
           </dl>
           {plan!.resume.vehicules_exclus.length > 0 && <div className="notice" role="status">Camions non planifiés : {plan!.resume.vehicules_exclus.map((e) => `${e.plaque} (${e.raison.toLowerCase()})`).join(", ")}</div>}
+          {plan!.avancement && (
+            <div className="notice ok" role="status">
+              <strong>Suivi en direct :</strong> {plan!.avancement.livrees} livrée{plan!.avancement.livrees > 1 ? "s" : ""} sur {plan!.avancement.total}
+              {plan!.avancement.sur_place > 0 && <> · {plan!.avancement.sur_place} sur place</>}
+              {plan!.avancement.impossibles > 0 && <> · <strong style={{ color: "var(--rouge)" }}>{plan!.avancement.impossibles} impossible{plan!.avancement.impossibles > 1 ? "s" : ""}</strong></>}
+              {plan!.avancement.en_retard > 0 && <> · <strong style={{ color: "var(--rouge)" }}>{plan!.avancement.en_retard} en retard</strong></>}
+            </div>
+          )}
           {plan!.alertes.length > 0 && <ul className="alertes" role="alert" aria-label="Alertes du plan">{plan!.alertes.map((a, i) => <li key={i} className={a.gravite === "infraction" ? "infraction" : ""}>{a.gravite === "infraction" && <strong>Infraction · </strong>}{a.message}</li>)}</ul>}
 
           {plan!.conducteurs.length > 0 && (
@@ -228,7 +263,11 @@ export default function Planning() {
                         onDragOver={(e) => { if (glisse !== null && glisse !== a.order_id && !t.verrouille) { e.preventDefault(); e.stopPropagation(); setSur(`s${a.order_id}`); } }}
                         onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setSur(null); if (glisse !== null && glisse !== a.order_id) deplacer(glisse, t.vehicle_id, n); setGlisse(null); }}>
                         <span className="heure" style={{ color: retards.has(a.order_id) ? "var(--rouge)" : undefined }}>{hhmm(a.arrivee_min)}</span>
-                        <span className="corps"><strong>{a.reference}</strong> <span className="muted">· {a.client} · {a.adresse}{a.fenetre_fin ? ` · avant ${a.fenetre_fin}` : ""}{a.attente_min >= 1 ? ` · attente ${Math.round(a.attente_min)} min` : ""}</span></span>
+                        <span className="corps"><strong>{a.reference}</strong> <span className="muted">· {a.client} · {a.adresse}{a.fenetre_fin ? ` · avant ${a.fenetre_fin}` : ""}{a.attente_min >= 1 ? ` · attente ${Math.round(a.attente_min)} min` : ""}</span>
+                          {a.livraison?.statut && <><br /><span style={{ fontWeight: 600, color: a.livraison.statut === "impossible" ? "var(--rouge)" : a.livraison.statut === "livre" ? "var(--vert)" : undefined }}>
+                            {a.livraison.statut === "arrive" ? `Sur place depuis ${new Date(a.livraison.arrive_le!).toLocaleTimeString("fr-FR", { timeStyle: "short" })}` : a.livraison.statut === "livre" ? `Livré à ${new Date(a.livraison.termine_le!).toLocaleTimeString("fr-FR", { timeStyle: "short" })}${a.livraison.nom_destinataire ? ` · ${a.livraison.nom_destinataire}` : ""}` : `Impossible à ${new Date(a.livraison.termine_le!).toLocaleTimeString("fr-FR", { timeStyle: "short" })} · ${a.livraison.motif}`}</span>
+                            {a.livraison.a_signature && a.livraison.termine_le && <> · signature</>}{a.livraison.photos.length > 0 && <> · {a.livraison.photos.map((p) => <a key={p} href={`/api/admin/plans/livraisons/photos/${p}`} target="_blank" rel="noreferrer">photo</a>).reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ", ", el] : [el]), [])}</>}</>}
+                          {a.retard_min ? <><br /><span style={{ color: "var(--rouge)", fontWeight: 600 }}>En retard de {a.retard_min} min</span></> : null}</span>
                         <select className="select" aria-label={`Déplacer ${a.reference} vers`} value="" disabled={a.verrouille || t.verrouille}
                           onChange={(e) => { const v = e.target.value; if (v) deplacer(a.order_id, v === "aucun" ? null : Number(v)); }}>
                           <option value="">Déplacer…</option>
@@ -271,6 +310,28 @@ export default function Planning() {
           </div>
         </>
       )}
+      <dialog ref={dialogueLiens} className="dialog large" aria-labelledby="liens-titre">
+        <div style={{ display: "grid", gap: 18, padding: 24 }}>
+          <div>
+            <h2 id="liens-titre">Liens des chauffeurs</h2>
+            <p className="muted" style={{ marginTop: 6 }}>Chaque chauffeur ouvre son lien sur son téléphone. La tournée ne s'affiche qu'une fois le contrôle avant départ du camion fait. Le lien est aussi accessible depuis le QR code du camion.</p>
+          </div>
+          <table className="rack">
+            <thead><tr><th>Camion</th><th>Conducteur</th><th>Lien</th></tr></thead>
+            <tbody>
+              {(liens ?? []).map((l) => (
+                <tr key={l.vehicle_id}>
+                  <td><Plaque>{l.plaque}</Plaque></td>
+                  <td>{l.conducteur ?? <span className="muted">Non affecté</span>}{l.email && <span className="muted"> · envoyé à {l.email}</span>}</td>
+                  <td><button className="btn btn-sm" onClick={() => copier(l.url)}>{copie === l.url ? "Copié" : "Copier le lien"}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hint">Les emails ne partent que si Brevo est configuré et si le conducteur a une adresse. Republier après une modification met à jour les tournées sans changer les liens.</p>
+          <div className="dialog-actions"><button className="btn" onClick={() => dialogueLiens.current?.close()}>Fermer</button></div>
+        </div>
+      </dialog>
       {!plan && !erreur && <div className="rack-empty"><strong>Pas encore de plan pour ce jour</strong>Importez les commandes puis cliquez sur « Optimiser ».</div>}
     </>
   );
