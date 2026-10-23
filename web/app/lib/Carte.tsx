@@ -15,8 +15,10 @@ const STYLE = {
 };
 
 /** Carte MapLibre : marqueurs colorés, clic sur un marqueur ou sur la carte (pour placer une adresse à la main). */
-export default function Carte({ points, ligne, onPoint, onCarte, curseur, hauteur = 420 }: {
-  points: Point[]; ligne?: [number, number][]; onPoint?: (id: number) => void; onCarte?: (lat: number, lng: number) => void; curseur?: boolean; hauteur?: number;
+export type Trace = { coords: [number, number][]; couleur: string };
+
+export default function Carte({ points, ligne, traces, onPoint, onCarte, curseur, hauteur = 420 }: {
+  points: Point[]; ligne?: [number, number][]; traces?: Trace[]; onPoint?: (id: number) => void; onCarte?: (lat: number, lng: number) => void; curseur?: boolean; hauteur?: number;
 }) {
   const conteneur = useRef<HTMLDivElement>(null);
   const carte = useRef<import("maplibre-gl").Map | null>(null);
@@ -90,6 +92,21 @@ export default function Carte({ points, ligne, onPoint, onCarte, curseur, hauteu
       });
     }
   }, [ligne]);
+
+  // Tracés pointillés de l'ordre de passage (à vol d'oiseau), une couleur par tournée.
+  useEffect(() => {
+    const m = carte.current;
+    if (!m) return;
+    const poser = () => {
+      const donnees = { type: "FeatureCollection" as const, features: (traces ?? []).filter((t) => t.coords.length > 1).map((t) => ({ type: "Feature" as const, properties: { couleur: t.couleur }, geometry: { type: "LineString" as const, coordinates: t.coords } })) };
+      const src = m.getSource("traces") as import("maplibre-gl").GeoJSONSource | undefined;
+      if (src) return src.setData(donnees);
+      m.addSource("traces", { type: "geojson", data: donnees });
+      m.addLayer({ id: "traces", type: "line", source: "traces", paint: { "line-color": ["get", "couleur"], "line-width": 2.5, "line-dasharray": [2, 2] } });
+    };
+    if (m.isStyleLoaded()) poser();
+    else m.once("load", poser);
+  }, [traces]);
 
   useEffect(() => {
     carte.current?.getCanvas && (carte.current.getCanvas().style.cursor = curseur ? "crosshair" : "");
