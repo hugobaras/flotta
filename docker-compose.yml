@@ -19,6 +19,7 @@ services:
     build: ./api
     environment:
       REDIS_URL: redis://redis:6379/0
+      VALHALLA_URL: ${VALHALLA_URL:-http://valhalla:8002}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
       BREVO_SENDER: ${BREVO_SENDER:-}
       APP_URL: ${APP_URL:-http://localhost:3000}
@@ -39,6 +40,7 @@ services:
       DATABASE_URL: postgresql+psycopg://transport:${POSTGRES_PASSWORD:-transport-dev}@db/transport
       UPLOAD_DIR: /data/uploads
       REDIS_URL: redis://redis:6379/0
+      VALHALLA_URL: ${VALHALLA_URL:-http://valhalla:8002}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
       BREVO_SENDER: ${BREVO_SENDER:-}
       APP_URL: ${APP_URL:-http://localhost:3000}
@@ -47,6 +49,24 @@ services:
     depends_on:
       - api
       - redis
+
+  # Routage poids lourd : démarré à la demande (`docker compose --profile routage up -d valhalla`).
+  # Le premier démarrage télécharge la carte France (environ 4,5 Go) et construit les tuiles (1 à 2 heures).
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    profiles: ["routage"]
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./valhalla/custom_files:/custom_files
+    environment:
+      tile_urls: https://download.geofabrik.de/europe/france-latest.osm.pbf
+      use_tiles_ignore_pbf: "True"
+      force_rebuild: ${VALHALLA_FORCE_REBUILD:-False}
+      build_admins: "True"
+      build_time_zones: "True"
+      build_elevation: "False"
+      server_threads: 4
 
   web:
     build: ./web

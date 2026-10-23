@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Carte, { Point } from "../../lib/Carte";
+import { CommandesTabs } from "../../ui";
 
 type Commande = {
   id: number; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; geo_statut: string;
@@ -135,6 +136,7 @@ export default function Commandes() {
           <button className="btn btn-primary" onClick={ouvrirImport}>Importer un fichier</button>
         </div>
       </div>
+      <CommandesTabs actif="commandes" />
       {message && <div className="notice" role="status">{message}</div>}
 
       <div className="filtres" role="group" aria-label="Afficher">
