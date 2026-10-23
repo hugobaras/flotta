@@ -8,6 +8,7 @@ import { Brand } from "../ui";
 const NAV = [
   { href: "/admin", label: "Tableau de bord", exact: true },
   { href: "/admin/controles", label: "Contrôles" },
+  { href: "/admin/flotte", label: "Flotte", aussi: "/admin/conducteurs" },
   { href: "/admin/parametres", label: "Réglages", aussi: "/admin/checklists" },
 ];
 
