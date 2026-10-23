@@ -66,6 +66,15 @@ export function FlotteTabs({ actif }: { actif: "vehicules" | "conducteurs" | "de
   );
 }
 
+export function CommandesTabs({ actif }: { actif: "commandes" | "itineraire" }) {
+  return (
+    <nav className="filtres" aria-label="Commandes">
+      <a className="filtre" href="/admin/commandes" aria-current={actif === "commandes" ? "page" : undefined} style={{ textDecoration: "none" }}>Commandes du jour</a>
+      <a className="filtre" href="/admin/itineraires" aria-current={actif === "itineraire" ? "page" : undefined} style={{ textDecoration: "none" }}>Itinéraire</a>
+    </nav>
+  );
+}
+
 export function BandeauPublic() {
   return (
     <header className="band">

@@ -15,8 +15,8 @@ const STYLE = {
 };
 
 /** Carte MapLibre : marqueurs colorés, clic sur un marqueur ou sur la carte (pour placer une adresse à la main). */
-export default function Carte({ points, onPoint, onCarte, curseur, hauteur = 420 }: {
-  points: Point[]; onPoint?: (id: number) => void; onCarte?: (lat: number, lng: number) => void; curseur?: boolean; hauteur?: number;
+export default function Carte({ points, ligne, onPoint, onCarte, curseur, hauteur = 420 }: {
+  points: Point[]; ligne?: [number, number][]; onPoint?: (id: number) => void; onCarte?: (lat: number, lng: number) => void; curseur?: boolean; hauteur?: number;
 }) {
   const conteneur = useRef<HTMLDivElement>(null);
   const carte = useRef<import("maplibre-gl").Map | null>(null);
@@ -66,6 +66,30 @@ export default function Carte({ points, onPoint, onCarte, curseur, hauteur = 420
     dessiner();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [points]);
+
+  // Tracé d'un itinéraire (GeoJSON), remplacé à chaque calcul.
+  useEffect(() => {
+    const m = carte.current;
+    const poser = () => {
+      if (!m) return;
+      const donnees = { type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: ligne ?? [] } };
+      const src = m.getSource("itineraire") as import("maplibre-gl").GeoJSONSource | undefined;
+      if (src) return src.setData(donnees);
+      m.addSource("itineraire", { type: "geojson", data: donnees });
+      m.addLayer({ id: "itineraire-bord", type: "line", source: "itineraire", paint: { "line-color": "#ffffff", "line-width": 8 }, layout: { "line-cap": "round", "line-join": "round" } });
+      m.addLayer({ id: "itineraire", type: "line", source: "itineraire", paint: { "line-color": "#111418", "line-width": 4 }, layout: { "line-cap": "round", "line-join": "round" } });
+    };
+    if (!m) return;
+    if (m.isStyleLoaded()) poser();
+    else m.once("load", poser);
+    if (ligne && ligne.length > 1) {
+      import("maplibre-gl").then(({ default: lib }) => {
+        const b = new lib.LngLatBounds();
+        ligne.forEach((c) => b.extend(c));
+        m.fitBounds(b, { padding: 50, duration: 0 });
+      });
+    }
+  }, [ligne]);
 
   useEffect(() => {
     carte.current?.getCanvas && (carte.current.getCanvas().style.cursor = curseur ? "crosshair" : "");
