@@ -140,7 +140,7 @@ def test_capacity_forces_several_trucks_and_leftovers_are_explained(a, client, c
     camion(a, "BB-100-BB", capacite_kg=500)
     depot(a)
     ajouter_commandes(client, 1, 7)  # 7 x 200 kg = 1400 kg pour 1000 kg de capacité
-    pid = lancer(a)
+    pid = lancer(a, rotations_max=1)  # une seule sortie par camion : c'est la capacité d'une tournée qui est testée ici
     executer(client, pid)
     d = a.get(f"/api/admin/plans/{pid}").json()
     assert len(d["routes"]) == 2 and all(r["charge_kg"] <= 500 for r in d["routes"])
@@ -243,3 +243,59 @@ def test_delete_plan_removes_its_routes_and_stops(a, client, calcul):
 def test_plan_routes_require_login(client):
     for method, url in [("get", "/api/admin/plans"), ("post", "/api/admin/plans"), ("get", "/api/admin/plans/1"), ("delete", "/api/admin/plans/1")]:
         assert getattr(client, method)(url).status_code == 401
+
+
+# ---------------------------------------------------------------- Rotations
+
+
+def commandes_de_8_palettes(client, n=3):
+    with client.Session() as db:
+        for i in range(n):
+            db.add(Order(company_id=1, reference=f"R{i}", adresse=f"{i} rue Test", lat=47.22 + i * 0.01, lng=-1.55, geo_statut="ok", poids_kg=800,
+                         palettes=8, volume_m3=10, date_livraison=date(2026, 11, 2)))
+        db.commit()
+
+
+def test_plan_uses_rotations_when_one_trip_cannot_carry_everything(a, client, calcul):
+    camion(a, "AA-100-AA", palettes=10)
+    depot(a)
+    commandes_de_8_palettes(client)
+    seul = lancer(a, rotations_max=1)
+    executer(client, seul)
+    assert len(a.get(f"/api/admin/plans/{seul}").json()["non_affectees"]) == 2
+    pid = lancer(a)  # 3 rotations par défaut
+    executer(client, pid)
+    d = a.get(f"/api/admin/plans/{pid}").json()
+    assert d["non_affectees"] == [] and d["alertes"] == []
+    (r,) = d["routes"]
+    assert [x["rotation"] for x in r["arrets"]] == [1, 2, 3]
+    assert [(x["numero"], x["charge_palettes"]) for x in r["rotations"]] == [(1, 8), (2, 8), (3, 8)]
+    sorties = [x["depart_min"] for x in r["rotations"]]
+    retours = [x["retour_min"] for x in r["rotations"]]
+    assert all(sorties[i + 1] >= retours[i] + 45 - 1e-6 for i in range(2))  # rechargement de 45 min respecté dans le plan enregistré
+    assert d["resume"]["nb_rotations"] == 3 and d["resume"]["nb_tournees"] == 1
+
+
+def test_loading_time_and_rotation_count_are_validated(a):
+    assert a.post("/api/admin/plans", json={"jour": JOUR, "rotations_max": 4}).status_code == 422
+    assert a.post("/api/admin/plans", json={"jour": JOUR, "rechargement_min": 5}).status_code == 422
+
+
+def test_rotations_survive_undo_redo_and_old_snapshots_default_to_one_rotation(a, client, calcul):
+    camion(a, "AA-100-AA", palettes=10)
+    depot(a)
+    commandes_de_8_palettes(client)
+    pid = lancer(a)
+    executer(client, pid)
+    avant = a.get(f"/api/admin/plans/{pid}").json()["routes"][0]["arrets"]
+    with client.Session() as db:
+        plan = db.get(Plan, pid)
+        etat = plans.charger_etat(db, plan)
+        for r in etat["routes"]:
+            for ar in r["arrets"]:
+                ar.pop("rotation")  # un instantané antérieur aux rotations
+        plans.ecrire_etat(db, plan, etat)
+        db.commit()
+    apres = a.get(f"/api/admin/plans/{pid}").json()
+    assert {x["rotation"] for x in apres["routes"][0]["arrets"]} == {1} and len(avant) == len(apres["routes"][0]["arrets"]) == 3
+    assert [x["type"] for x in apres["alertes"]] == ["surcharge"]  # 24 palettes dans un camion de 10 : la surcharge est signalée

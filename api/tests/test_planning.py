@@ -93,3 +93,63 @@ def test_indicators_summary():
     i = indicateurs(routes, 3, 4000)
     assert i["km"] == 40 and i["nb_tournees"] == 1 and i["remplissage_pct"] == 25 and i["nb_alertes"] == 1 and i["nb_non_affectees"] == 3
     assert indicateurs([calculer_route(ctx, 2, [])], 0, None)["remplissage_pct"] is None
+
+
+# ---------------------------------------------------------------- Rotations (plusieurs sorties du dépôt dans la journée)
+
+
+def test_second_rotation_returns_to_depot_reloads_and_leaves_again():
+    from app.planning import normaliser_rotations  # noqa: F401
+    ctx = contexte([cmd(1, palettes=4), cmd(2, palettes=6)], positions=[10, 20])
+    r = calculer_route(ctx, 1, [1, 2], rotations=[1, 2])
+    a, b = r.arrets
+    # 6 h : trajet 10, service 15, retour 10 -> 6 h 35 ; rechargement 45 -> 7 h 20 ; trajet 20 -> 7 h 40 ; service 15 ; retour 20 -> 8 h 15
+    assert (r.depart_min, a.arrivee_min, a.depart_min) == (360, 370, 385)
+    assert (b.arrivee_min, b.depart_min, r.retour_min) == (460, 475, 495)
+    assert [(x.numero, x.depart_min, x.retour_min, x.charge_palettes) for x in r.rotations] == [(1, 360, 395, 4), (2, 440, 495, 6)]
+    assert (r.distance_km, r.trajet_s, r.charge_palettes) == (60, 3600, 10) and (a.rotation, b.rotation) == (1, 2)
+
+
+def test_loading_time_is_a_setting():
+    ctx = contexte([cmd(1), cmd(2)], positions=[10, 20])
+    ctx.rechargement_min = 90
+    assert calculer_route(ctx, 1, [1, 2], rotations=[1, 2]).arrets[1].arrivee_min == 460 + 45
+
+
+def test_without_rotations_nothing_changes():
+    ctx = contexte([cmd(1, service_min=30), cmd(2, service_min=15)], positions=[10, 20])
+    assert calculer_route(ctx, 1, [1, 2]).retour_min == calculer_route(ctx, 1, [1, 2], rotations=[1, 1]).retour_min
+
+
+def test_overload_is_checked_per_rotation_not_on_the_day_total():
+    camion = VehiculeInfo(1, "AA-111-AA", "A", palettes=10)
+    ctx = contexte([cmd(1, palettes=8), cmd(2, palettes=8)], vehicules=[camion], positions=[10, 20])
+    assert calculer_route(ctx, 1, [1, 2], rotations=[1, 2]).alertes == []
+    (alerte,) = calculer_route(ctx, 1, [1, 2], rotations=[1, 1]).alertes
+    assert alerte.type == "surcharge" and "16 palettes pour 10" in alerte.message
+    sur = calculer_route(contexte([cmd(1, palettes=12), cmd(2, palettes=2)], vehicules=[camion], positions=[10, 20]), 1, [1, 2], rotations=[1, 2])
+    assert [a.type for a in sur.alertes] == ["surcharge"] and "rotation 1" in sur.alertes[0].message
+
+
+def test_max_duration_applies_to_each_rotation():
+    ctx = contexte([cmd(1, service_min=40), cmd(2, service_min=40)], positions=[10, 10], duree_max=60)
+    assert [a.type for a in calculer_route(ctx, 1, [1, 2], rotations=[1, 1]).alertes] == ["duree"]  # 10 + 40 + 0 + 40 + 10 = 100 min
+    assert calculer_route(ctx, 1, [1, 2], rotations=[1, 2]).alertes == []  # 60 min chacune
+
+
+def test_daily_driving_adds_up_over_rotations_and_breaks_are_inserted():
+    ctx = contexte([cmd(1), cmd(2)], positions=[150, 150])
+    r = calculer_route(ctx, 1, [1, 2], rotations=[1, 2])
+    assert r.conduite_min == 600 and len(r.pauses) == 2  # le chargement n'est pas une pause : 4 h 30 de conduite continue sont vite atteintes
+    assert [a.type for a in r.alertes] == ["extension"]  # 10 h pile : une extension à 10 h, pas une infraction
+
+
+def test_return_after_closing_is_reported_once_for_the_whole_day():
+    ctx = contexte([cmd(1), cmd(2)], positions=[10, 20], fermeture=8 * 60)
+    assert [a.type for a in calculer_route(ctx, 1, [1, 2], rotations=[1, 2]).alertes] == ["fermeture"]
+
+
+@pytest.mark.parametrize("entree,n,attendu", [(None, 3, [1, 1, 1]), ([2, 2, 5], 3, [1, 1, 2]), ([3, 1], 2, [1, 1]), ([1], 3, [1, 1, 1]), ([1, 2], 4, [1, 2, 2, 2]), ([0, 1], 2, [1, 1])])
+def test_rotation_numbers_are_normalised(entree, n, attendu):
+    from app.planning import normaliser_rotations
+    assert normaliser_rotations(entree, n) == attendu

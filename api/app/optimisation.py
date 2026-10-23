@@ -52,6 +52,8 @@ class Probleme:
     duree_max_min: int = 10 * 60
     temps_calcul_s: int = 10
     pauses: bool = True  # tient compte des pauses de 45 min toutes les 4 h 30 de conduite
+    rotations_max: int = 1  # sorties du dépôt par véhicule et par jour (1 = une seule tournée)
+    rechargement_min: int = 45  # temps au dépôt entre deux rotations d'un même véhicule
 
 
 @dataclass
@@ -60,6 +62,7 @@ class ArretOpt:
     arrivee_min: float
     depart_min: float
     attente_min: float
+    rotation: int = 1
 
 
 @dataclass
@@ -150,7 +153,7 @@ def _raison_probable(c: CommandeOpt, p: Probleme, restantes: list[CommandeOpt]) 
     return "Capacité ou durée de tournée insuffisante avec les autres commandes"
 
 
-def optimiser(p: Probleme) -> Solution:
+def _une_rotation(p: Probleme) -> Solution:
     if not p.vehicules:
         return Solution([], [(c.id, "Aucun véhicule disponible") for c in p.commandes])
     non_affectees: list[tuple[int, str]] = []
@@ -260,3 +263,60 @@ def optimiser(p: Probleme) -> Solution:
         if c.id not in servies:
             non_affectees.append((c.id, _raison_probable(c, p, restantes)))
     return Solution(routes, non_affectees)
+
+
+def optimiser(p: Probleme) -> Solution:
+    """Plan de la journée. Avec plusieurs rotations, on optimise d'abord une sortie par camion ; ce qui reste est ensuite proposé
+    aux camions rentrés au dépôt (départ après retour et rechargement, conduite restante), et ainsi de suite jusqu'à `rotations_max`.
+
+    Cette méthode séquentielle est un choix de simplicité et de robustesse : le solveur ne sait pas insérer en une seule
+    étape « une livraison + un rechargement », et relier les rotations par des contraintes entre véhicules l'empêche de converger.
+    Le surcoût de pauses du modèle (1/6 de la conduite) reste valable sur l'ensemble des rotations d'un camion."""
+    solution = _une_rotation(p)
+    if p.rotations_max <= 1 or not solution.non_affectees:
+        return solution
+    par_vehicule: dict[int, RouteOpt] = {r.vehicule_id: r for r in solution.routes}
+    nb_rotations = {vid: 1 for vid in par_vehicule}
+    non_affectees = solution.non_affectees
+    index = {c.id: k for k, c in enumerate(p.commandes, start=1)}  # ligne des matrices de chaque commande
+    for _ in range(2, p.rotations_max + 1):
+        restantes = [c for c in p.commandes if c.id in {i for i, _ in non_affectees}]
+        vehicules = []
+        for v in p.vehicules:
+            r = par_vehicule.get(v.id)
+            if r is None:
+                vehicules.append(v)
+                continue
+            debut = math.ceil(r.retour_min + p.rechargement_min)
+            reste = v.conduite_max_min - sum(x.trajet_s for x in [r]) / 60
+            if debut >= p.fermeture_min or reste <= 0:
+                continue
+            vehicules.append(VehiculeOpt(v.id, v.profil, v.capacite_kg, v.capacite_m3, v.palettes, v.frigo, v.adr, reste, max(debut, v.debut_min or 0)))
+        if not restantes or not vehicules:
+            if restantes:  # plus aucun camion ne peut repartir : la « capacité totale » d'une passe précédente ne dit plus la vraie cause
+                non_affectees = [(i, "Aucun camion ne peut repartir : fermeture du dépôt ou temps de conduite atteint" if r.startswith("Capacité totale") else r)
+                                 for i, r in non_affectees]
+            break
+        lignes = [0] + [index[c.id] for c in restantes]
+        suite = _une_rotation(Probleme(
+            vehicules=vehicules, commandes=restantes, ouverture_min=p.ouverture_min, fermeture_min=p.fermeture_min, duree_max_min=p.duree_max_min,
+            matrices={k: [[m[a][b] for b in lignes] for a in lignes] for k, m in p.matrices.items()},
+            temps_calcul_s=max(1, p.temps_calcul_s // 2), pauses=p.pauses))  # la 1re passe prend l'essentiel du temps de calcul
+        if not suite.routes:
+            non_affectees = suite.non_affectees
+            break
+        for r in suite.routes:
+            avant = par_vehicule.get(r.vehicule_id)
+            if avant is None:
+                par_vehicule[r.vehicule_id], nb_rotations[r.vehicule_id] = r, 1
+                continue
+            nb_rotations[r.vehicule_id] += 1
+            for a in r.arrets:
+                a.rotation = nb_rotations[r.vehicule_id]
+            avant.arrets.extend(r.arrets)
+            avant.retour_min, avant.trajet_s = r.retour_min, avant.trajet_s + r.trajet_s
+        non_affectees = suite.non_affectees
+    if any(n > 1 for n in nb_rotations.values()):  # après plusieurs rotations, la limite de conduite est ce qu'il reste aux camions
+        non_affectees = [(i, r.replace("Temps de conduite : l'aller-retour", "Temps de conduite restant : l'aller-retour")) for i, r in non_affectees]
+    ordre = {v.id: i for i, v in enumerate(p.vehicules)}
+    return Solution(sorted(par_vehicule.values(), key=lambda r: ordre[r.vehicule_id]), non_affectees)

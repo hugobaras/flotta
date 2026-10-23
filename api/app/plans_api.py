@@ -28,7 +28,9 @@ class PlanIn(BaseModel):
     depot_id: int | None = None
     affectations: dict[int, int] | None = None  # véhicule -> conducteur ; sinon le conducteur habituel du véhicule
     temps_max_s: int = Field(default=10, ge=1, le=120)  # temps de calcul maximal
-    duree_max_min: int = Field(default=600, ge=60, le=900)  # durée maximale d'une tournée
+    duree_max_min: int = Field(default=600, ge=60, le=900)  # durée maximale d'une rotation
+    rotations_max: int = Field(default=3, ge=1, le=3)  # sorties du dépôt par camion et par jour ; 1 = une seule tournée
+    rechargement_min: int = Field(default=45, ge=15, le=240)  # temps au dépôt entre deux rotations
 
 
 def _plan(db: Session, user: User, plan_id: int) -> Plan:
