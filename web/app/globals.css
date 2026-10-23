@@ -11,8 +11,8 @@
   --ambre: #c77700;
   --rouge: #d3281b;
   --gris: #9a9fa8;
-  --notice: #fff4e8;
-  --notice-line: #f3cfa6;
+  --notice: #fcf6e4;
+  --notice-line: #e9d9a3;
   --danger-tint: #fef1ef;
   --r: 6px;
   --font: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -43,11 +43,11 @@ td, th, .num { font-variant-numeric: tabular-nums; }
 
 /* ---------- Plaque, états ---------- */
 .plaque {
-  display: inline-block; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--white);
+  display: inline-block; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--white);
   font-family: var(--mono); font-size: 13.5px; font-weight: 500; letter-spacing: 0.02em; white-space: nowrap; vertical-align: middle;
 }
 .plaque-lg { font-size: 14.5px; padding: 3px 9px; }
-.plaque-xl { font-size: 26px; padding: 6px 14px; border-radius: 8px; border-color: var(--ink); letter-spacing: 0.04em; }
+.plaque-xl { font-size: 26px; padding: 6px 14px; border-radius: var(--r); border-color: var(--ink); letter-spacing: 0.04em; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .dot-controle { background: var(--vert); }
 .dot-defaut { background: var(--ambre); }
@@ -127,7 +127,8 @@ td, th, .num { font-variant-numeric: tabular-nums; }
   .brand { min-height: 56px; }
   .who { margin-left: auto; min-height: 56px; }
   .who .email { display: none; }
-  .nav { order: 3; flex: 1 1 100%; overflow-x: auto; gap: 16px; margin: 0 -4px; padding: 0 4px; }
+  .nav { order: 3; flex: 1 1 100%; overflow-x: auto; gap: 16px; margin: 0 -4px; padding: 0 4px; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
   .nav a { flex: none; min-height: 44px; }
   .wrap { padding: 32px 16px 72px; }
   h1 { font-size: 28px; }
@@ -155,7 +156,7 @@ td, th, .num { font-variant-numeric: tabular-nums; }
 .filtre .count { font-variant-numeric: tabular-nums; color: var(--ink-3); font-weight: 400; }
 .filtre[aria-pressed="true"] .count { color: var(--ink-2); }
 
-.notice { background: var(--notice); border: 1px solid var(--notice-line); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; }
+.notice { background: var(--notice); border: 1px solid var(--notice-line); border-radius: var(--r); padding: 12px 16px; margin-bottom: 24px; }
 .notice.danger { background: var(--danger-tint); border-color: #f5c6c1; color: #8f1d14; }
 .notice.ok { background: #effaf3; border-color: #bfe5cd; color: #12633a; }
 .notice strong { font-weight: 600; }
@@ -188,7 +189,7 @@ td, th, .num { font-variant-numeric: tabular-nums; }
 
 /* ---------- Dialogue ---------- */
 dialog.dialog {
-  width: min(480px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 14px;
+  width: min(480px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 10px;
   background: var(--white); color: var(--ink); box-shadow: 0 24px 60px rgba(17, 20, 24, 0.2), 0 2px 8px rgba(17, 20, 24, 0.08);
 }
 dialog.dialog::backdrop { background: rgba(17, 20, 24, 0.35); backdrop-filter: blur(2px); }
@@ -255,10 +256,10 @@ dialog.dialog[open] { animation: pop 0.22s var(--ease); }
 .checks .critique { font-size: 13.5px; color: var(--ink-3); }
 .checks .ko .label-point { color: var(--rouge); }
 .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; padding-top: 16px; }
-.photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); display: block; }
+.photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--r); border: 1px solid var(--line); display: block; }
 .sig-box { padding-top: 16px; }
-.sig-box img { display: block; max-width: 100%; max-height: 120px; background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
-.map { height: 240px; margin-top: 16px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+.sig-box img { display: block; max-width: 100%; max-height: 120px; background: var(--white); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; }
+.map { height: 240px; margin-top: 16px; border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); }
 
 /* ---------- Checklists ---------- */
 .items { list-style: none; margin: 0; padding: 0; }
