@@ -77,7 +77,13 @@ export default function Conducteurs() {
   }
 
   async function rafraichir(c: Conducteur) {
-    setActivites(await (await fetch(`/api/admin/conducteurs/${c.id}/activites`)).json());
+    const ra = await fetch(`/api/admin/conducteurs/${c.id}/activites`);
+    if (!ra.ok) {
+      setActivites([]);
+      setCompteurs(null);
+      return setErreurActivite((await ra.json().catch(() => ({}))).detail ?? "Indisponible.");
+    }
+    setActivites(await ra.json());
     setCompteurs(await (await fetch(`/api/admin/conducteurs/${c.id}/compteurs`)).json());
   }
 

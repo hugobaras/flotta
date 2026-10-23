@@ -87,3 +87,18 @@ Module isolé `api/app/regulations/` (règlement CE 561/2006), intégré à l'op
 - **Retards** : `GET /api/admin/plans/{id}/suivi` recalcule les heures d'arrivée des arrêts restants à partir de la dernière position connue et du statut des arrêts ; une fenêtre horaire manquée est signalée dans le planning.
 - **Propositions** (`POST /plans/{id}/propositions`, types `retard`, `urgence`, `panne`) : 2 ou 3 solutions chiffrées (retards, retour au plus tard, kilomètres). Cet appel ne modifie rien ; seul `POST /plans/{id}/propositions/appliquer`, déclenché par un clic sur « Appliquer », change le plan, en une seule version annulable.
 - **Trafic** : abstraction `app/trafic.py` (HERE, TomTom), **désactivée par défaut**. Elle ne s'active qu'avec `TRAFIC_ACTIF=true` et une clé fournisseur ; sans cela, les durées du plan sont utilisées. Les appels HERE/TomTom sont testés avec des réponses simulées et n'ont jamais été exécutés contre le vrai service : à vérifier avant activation.
+
+## Offres et facturation (étape 12)
+
+| | Essentiel | Pro |
+|---|---|---|
+| Prix par camion et par mois (HT) | 45 € | 75 € |
+| Minimum mensuel (HT) | 500 € | 900 € |
+| Utilisateurs exploitants | 2 | illimités |
+| Temps de conduite (déclarations, compteurs), temps réel et replanification | non | oui |
+
+- **Grille réglable sans code** : variable `OFFRES_JSON` (par exemple `{"pro": {"prix_eur": 80}}`), `REMISE_ANNUELLE_PCT` (10 par défaut, **valeur d'hypothèse à confirmer**) et `TVA_PCT` (20).
+- **Verrouillage** : `app/offres.py` (`exige("temps_reel")`, `exige("conduite")`) refuse en 403 côté API ; l'interface masque les boutons et affiche un message Pro. Une société sans abonnement enregistré garde toutes les fonctions (sociétés antérieures à l'étape 12). Une société suspendue est bloquée côté exploitant ; les chauffeurs gardent leurs pages.
+- **Back-office** : rôle `plateforme` (`PASSWORD=… python create_user.py EMAIL "Nom société" plateforme`), page `/admin/plateforme` : création de société, offre, camions facturés, statut (essai / actif / suspendu), MRR (abonnements actifs seulement), devis et factures PDF numérotés `DE-AAAA-NNNN` / `FA-AAAA-NNNN`. Le paiement se fait par virement.
+- **Mentions légales** : l'identité du vendeur vient de `VENDEUR_NOM`, `VENDEUR_ADRESSE`, `VENDEUR_SIREN`, `VENDEUR_TVA`, `VENDEUR_IBAN` (des marqueurs « à renseigner » s'impriment sinon). Le texte des pénalités de retard et de l'indemnité de 40 € est à faire relire par un comptable avant la première facture réelle.
+- Les fonctions `api` et `stats` de l'offre Pro n'ont pas encore de route à verrouiller (API publique : étape 13).

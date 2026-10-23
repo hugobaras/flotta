@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from . import plans
 from .auth import current_user
 from .db import get_db
+from .offres import exige
 from .models import Depot, Plan, PlanSnapshot, Route, RouteStop, User, Vehicle
 
 log = logging.getLogger(__name__)
@@ -184,7 +185,7 @@ def reoptimiser(plan_id: int, user: User = Depends(current_user), db: Session = 
 
 
 @router.get("/{plan_id}/suivi")
-def suivi_direct(plan_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def suivi_direct(plan_id: int, user: User = Depends(exige("temps_reel")), db: Session = Depends(get_db)):
     from . import livraisons, suivi
     p = _plan(db, user, plan_id)
     _terminé(p)
@@ -216,7 +217,7 @@ def _commande_urgente(db: Session, user: User, p: Plan, order_id: int | None):
 
 
 @router.post("/{plan_id}/propositions")
-def propositions(plan_id: int, body: DemandePropositions, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def propositions(plan_id: int, body: DemandePropositions, user: User = Depends(exige("temps_reel")), db: Session = Depends(get_db)):
     """Propose 2 à 3 solutions chiffrées. Lecture seule : le plan n'est jamais modifié ici."""
     from . import livraisons, suivi
     from .routage import RouteurIndisponible
@@ -247,7 +248,7 @@ class Validation(BaseModel):
 
 
 @router.post("/{plan_id}/propositions/appliquer")
-def appliquer_proposition(plan_id: int, body: Validation, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def appliquer_proposition(plan_id: int, body: Validation, user: User = Depends(exige("temps_reel")), db: Session = Depends(get_db)):
     """Applique une proposition validée par l'exploitant (une seule étape d'historique, annulable)."""
     from . import suivi
     from .routage import RouteurIndisponible

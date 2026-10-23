@@ -1,4 +1,4 @@
-"""Crée une société (si besoin) et un compte : python create_user.py EMAIL "Nom société" [admin|exploitant]
+"""Crée une société (si besoin) et un compte : python create_user.py EMAIL "Nom société" [admin|exploitant|plateforme]
 Le mot de passe est lu sur l'entrée (variable PASSWORD ou invite), jamais en argument."""
 import getpass
 import os
@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.auth import hasher
 from app.checklists import create_default_template
 from app.db import SessionLocal
+from app.offres import place_utilisateur
 from app.models import Company, User
 
 email, nom = sys.argv[1].strip().lower(), sys.argv[2]
@@ -24,6 +25,8 @@ with SessionLocal() as db:
         db.add(company)
         db.flush()
         create_default_template(db, company.id)
+    if role != "plateforme" and not place_utilisateur(db, company.id):
+        sys.exit(f"L'offre de {nom} est limitée à 2 utilisateurs exploitants : passez la société en Pro")
     db.add(User(company_id=company.id, email=email, password_hash=hasher.hash(password), role=role))
     db.commit()
 print(f"Compte {email} créé pour {nom}")

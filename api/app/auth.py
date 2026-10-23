@@ -12,7 +12,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session as DbSession
 
 from .db import get_db
-from .models import Session, User
+from .models import Session, Subscription, User
 
 router = APIRouter(prefix="/api/auth")
 hasher = PasswordHasher()
@@ -39,7 +39,12 @@ def current_user(session: str | None = Cookie(default=None), db: DbSession = Dep
     row = db.get(Session, _digest(session)) if session else None
     if not row or row.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise HTTPException(401, "Non connecté")
-    return db.get(User, row.user_id)
+    user = db.get(User, row.user_id)
+    if user.role != "plateforme":
+        sub = db.scalar(select(Subscription).where(Subscription.company_id == user.company_id))
+        if sub and sub.statut == "suspendu":
+            raise HTTPException(403, "Compte suspendu : contactez votre interlocuteur Flotta")
+    return user
 
 
 class LoginIn(BaseModel):
@@ -82,5 +87,8 @@ def logout(response: Response, session: str | None = Cookie(default=None), db: D
 
 
 @router.get("/me")
-def me(user: User = Depends(current_user)):
-    return {"email": user.email, "role": user.role}
+def me(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
+    from . import offres
+    sub = offres.abonnement(db, user.company_id)
+    return {"email": user.email, "role": user.role, "offre": sub.offre if sub else "pro",
+            "fonctions": offres.fonctions(db, user.company_id)}

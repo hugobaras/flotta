@@ -40,6 +40,7 @@ export default function Planning() {
   const [tempsMax, setTempsMax] = useState(10);
   const [glisse, setGlisse] = useState<number | null>(null);
   const [sur, setSur] = useState<string | null>(null);
+  const [pro, setPro] = useState(true);
   const [retardsPrevus, setRetardsPrevus] = useState<Retard[]>([]);
   const [trafic, setTrafic] = useState<{ actif: boolean; fournisseur: string | null; indisponible: boolean } | null>(null);
   const [propositions, setPropositions] = useState<{ demande: { type: string; order_id?: number; vehicle_id?: number }; titre: string; liste: Proposition[] } | null>(null);
@@ -91,6 +92,10 @@ export default function Planning() {
     dialogueLiens.current?.showModal();
     lire(plan!.id);
   }
+
+  useEffect(() => {
+    fetch("/api/auth/me").then(async (r) => r.ok && setPro((await r.json()).fonctions.includes("temps_reel")));
+  }, []);
 
   const chargerSuivi = useCallback(async (id: number) => {
     const r = await fetch(`/api/admin/plans/${id}/suivi`);
@@ -235,7 +240,8 @@ export default function Planning() {
               </ul>
             </div>
           )}
-          <div id="urgence" className="barre-outils">
+          {!pro && <p className="hint" style={{ marginBottom: 8 }}>Suivi des retards, commande urgente et panne : fonctions de l'offre Pro.</p>}
+          {pro && <div id="urgence" className="barre-outils">
             <button className="btn btn-sm" onClick={ouvrirUrgence}>Commande urgente…</button>
             {urgentes.length > 0 && (
               <select className="select" style={{ width: "auto" }} aria-label="Commande urgente à insérer" value="" onChange={(e) => e.target.value && proposer({ type: "urgence", order_id: Number(e.target.value) }, "Commande urgente")}>
@@ -243,7 +249,7 @@ export default function Planning() {
                 {urgentes.map((c) => <option key={c.id} value={c.id}>{c.reference} · {c.adresse}</option>)}
               </select>
             )}
-          </div>
+          </div>}
           {plan!.avancement && (
             <div className="notice ok" role="status">
               <strong>Suivi en direct :</strong> {plan!.avancement.livrees} livrée{plan!.avancement.livrees > 1 ? "s" : ""} sur {plan!.avancement.total}
@@ -280,7 +286,7 @@ export default function Planning() {
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
                       <span className="dot" style={{ background: couleurDe(t.vehicle_id), width: 12, height: 12 }} aria-hidden /><Plaque>{t.plaque}</Plaque>
                       <button className="btn btn-ghost btn-sm" aria-pressed={t.verrouille} onClick={() => appeler("verrouiller", { vehicle_id: t.vehicle_id, verrouille: !t.verrouille })}><Cadenas ferme={t.verrouille} />{t.verrouille ? "Tournée verrouillée" : "Verrouiller"}</button>
-                      {!t.verrouille && t.arrets.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => proposer({ type: "panne", vehicle_id: t.vehicle_id }, `Panne de ${t.plaque}`)}>Panne…</button>}
+                      {pro && !t.verrouille && t.arrets.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => proposer({ type: "panne", vehicle_id: t.vehicle_id }, `Panne de ${t.plaque}`)}>Panne…</button>}
                     </span>
                     <small>{t.arrets.length ? `${hhmm(t.depart_min)} → ${hhmm(t.retour_min)} · ${t.distance_km} km · ${t.charge_kg} kg · ${t.charge_palettes} pal.` : "Aucun arrêt"}</small>
                   </h2>

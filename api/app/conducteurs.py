@@ -11,6 +11,7 @@ from . import regulations as reg
 from .auth import current_user
 from .badge import hash_pin, nouveau_pin
 from .db import get_db
+from .offres import exige
 from .models import ActiviteConducteur, Check, Driver, User, Vehicle
 
 router = APIRouter(prefix="/api/admin/conducteurs")
@@ -172,7 +173,7 @@ def _sortie_activite(a: ActiviteConducteur) -> dict:
 
 
 @router.get("/{driver_id}/activites")
-def lister_activites(driver_id: int, jours: int = 15, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def lister_activites(driver_id: int, jours: int = 15, user: User = Depends(exige("conduite")), db: Session = Depends(get_db)):
     d = _driver(db, user, driver_id)
     depuis = maintenant() - timedelta(days=max(1, min(jours, 60)))
     rows = db.scalars(select(ActiviteConducteur).where(ActiviteConducteur.conducteur_id == d.id, ActiviteConducteur.fin > depuis)
@@ -181,7 +182,7 @@ def lister_activites(driver_id: int, jours: int = 15, user: User = Depends(curre
 
 
 @router.post("/{driver_id}/activites", status_code=201)
-def declarer_activites(driver_id: int, body: ActivitesIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def declarer_activites(driver_id: int, body: ActivitesIn, user: User = Depends(exige("conduite")), db: Session = Depends(get_db)):
     d = _driver(db, user, driver_id)
     ref = maintenant()
     for a in body.activites:
@@ -205,7 +206,7 @@ def declarer_activites(driver_id: int, body: ActivitesIn, user: User = Depends(c
 
 
 @router.delete("/{driver_id}/activites/{activite_id}", status_code=204)
-def supprimer_activite(driver_id: int, activite_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def supprimer_activite(driver_id: int, activite_id: int, user: User = Depends(exige("conduite")), db: Session = Depends(get_db)):
     d = _driver(db, user, driver_id)
     a = db.scalar(select(ActiviteConducteur).where(ActiviteConducteur.id == activite_id, ActiviteConducteur.conducteur_id == d.id))
     if not a:
@@ -216,7 +217,7 @@ def supprimer_activite(driver_id: int, activite_id: int, user: User = Depends(cu
 
 
 @router.get("/{driver_id}/compteurs")
-def compteurs(driver_id: int, instant: datetime | None = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def compteurs(driver_id: int, instant: datetime | None = None, user: User = Depends(exige("conduite")), db: Session = Depends(get_db)):
     """Temps de conduite restants du conducteur à l'instant donné (maintenant par défaut), et infractions de l'historique."""
     d = _driver(db, user, driver_id)
     if instant is not None and instant.tzinfo is None:
