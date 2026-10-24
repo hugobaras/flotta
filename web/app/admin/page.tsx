@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState } from "react";
+import { Panneau } from "./panneau";
+import Controles from "./_sections/controles";
 import { dateHeure, Etat, Macaron, Plaque, Statut } from "../ui";
 
 type Ligne = { vehicle_id: number; plaque: string; statut: Statut; controle: { id: number; conducteur: string; created_at: string } | null };
 type Rappels = { heure_rappel: string; vehicules: { id: number; plaque: string }[] };
-type Journee = { commandes: number; aPlanifier: number; plan: { id: number; statut: string; resume: { nb_tournees: number; nb_commandes: number; nb_non_affectees: number; km: number; nb_alertes: number } | null } | null };
+type Journee = { commandes: number; aPlanifier: number; plan: { id: number; statut: string; publie_le?: string | null; resume: { nb_tournees: number; nb_commandes: number; nb_non_affectees: number; km: number; nb_alertes: number } | null } | null };
 type Filtre = "traiter" | "controle" | "tous";
 
 const aujourdhui = () => new Date().toLocaleDateString("sv-SE"); // AAAA-MM-JJ, jour local
@@ -22,6 +24,7 @@ export default function Admin() {
   const [ouvert, setOuvert] = useState<number | null>(null);
   const [motif, setMotif] = useState("");
   const [erreur, setErreur] = useState("");
+  const [aFaire, setAFaire] = useState(0);
 
   const charger = useCallback(async () => {
     const r = await fetch(`/api/admin/tableau${date ? `?date=${date}` : ""}`);
@@ -37,6 +40,10 @@ export default function Admin() {
       setJournee({ commandes: cmds.length, aPlanifier: cmds.filter((x) => x.statut === "a_planifier").length, plan });
     }
   }, [date]);
+
+  useEffect(() => {
+    fetch("/api/admin/demarrage").then(async (r) => r.ok && setAFaire((await r.json()).etapes.filter((e: { fait: boolean | null }) => e.fait === false).length));
+  }, []);
 
   useEffect(() => {
     charger();
@@ -85,21 +92,37 @@ export default function Admin() {
         </div>
       )}
 
-      {journee && (
-        <section aria-label="Livraisons du jour" style={{ marginBottom: 28 }}>
-          {journee.commandes === 0 ? (
-            <p className="muted">Aucune commande ce jour. <Link href="/admin/commandes">Importer des commandes</Link></p>
-          ) : (
-            <dl className="indicateurs" style={{ marginBottom: 8 }}>
-              <div><dt>Commandes</dt><dd className="num">{journee.commandes}</dd></div>
-              <div><dt>Tournées</dt><dd className="num">{journee.plan?.resume?.nb_tournees ?? "—"}</dd></div>
-              <div><dt>Non affectées</dt><dd className="num">{journee.plan?.resume ? journee.plan.resume.nb_non_affectees : journee.aPlanifier}</dd></div>
-              <div><dt>Alertes du plan</dt><dd className="num">{journee.plan?.resume?.nb_alertes ?? "—"}</dd></div>
-            </dl>
-          )}
-          {journee.commandes > 0 && <p className="hint">{journee.plan ? <Link href="/admin/planning">Ouvrir le planning</Link> : <>Pas encore de plan : <Link href="/admin/planning">lancer l'optimisation</Link></>} · <Link href="/admin/commandes">Voir les commandes</Link></p>}
-        </section>
+      {aFaire > 0 && jourCourant && (
+        <div className="action-jour">
+          <p><strong>Mise en route :</strong> {aFaire} étape{aFaire > 1 ? "s" : ""} restante{aFaire > 1 ? "s" : ""} (camions, conducteurs, commandes…).</p>
+          <Link className="btn btn-sm" href="/admin/configuration#demarrer">Continuer</Link>
+        </div>
       )}
+
+      {journee && (() => {
+        const [texte, lien, bouton] = journee.commandes === 0
+          ? ["Aucune commande pour ce jour.", "/admin/planning#commandes", "Importer les commandes"]
+          : !journee.plan ? [`${journee.commandes} commandes, pas encore de plan.`, "/admin/planning", "Optimiser les tournées"]
+          : !journee.plan.publie_le ? ["Plan calculé, pas encore envoyé aux chauffeurs.", "/admin/planning", "Vérifier et publier"]
+          : ["Plan publié : les chauffeurs ont leur tournée.", "", ""];
+        return (
+          <section aria-label="Livraisons du jour" style={{ marginBottom: 28 }}>
+            {journee.commandes > 0 && (
+              <dl className="indicateurs" style={{ marginBottom: 12 }}>
+                <div><dt>Commandes</dt><dd className="num">{journee.commandes}</dd></div>
+                <div><dt>Tournées</dt><dd className="num">{journee.plan?.resume?.nb_tournees ?? "—"}</dd></div>
+                <div><dt>Non affectées</dt><dd className="num">{journee.plan?.resume ? journee.plan.resume.nb_non_affectees : journee.aPlanifier}</dd></div>
+                <div><dt>Alertes du plan</dt><dd className="num">{journee.plan?.resume?.nb_alertes ?? "—"}</dd></div>
+              </dl>
+            )}
+            <div className="action-jour" style={{ marginBottom: 0 }}>
+              <p>{texte}</p>
+              {lien && <Link className="btn btn-primary" href={lien}>{bouton}</Link>}
+              {!lien && <Link className="btn btn-sm" href="/admin/planning">Ouvrir le planning</Link>}
+            </div>
+          </section>
+        );
+      })()}
 
       <div className="filtres" role="group" aria-label="Afficher">
         <button className="filtre" aria-pressed={filtre === "traiter"} onClick={() => setFiltre("traiter")}>À traiter <span className="count">{aTraiter.length}</span></button>
@@ -161,6 +184,9 @@ export default function Admin() {
           </table>
         </div>
       )}
+      <div style={{ marginTop: 40 }}>
+        <Panneau id="controles" titre="Historique des contrôles"><Controles /></Panneau>
+      </div>
     </>
   );
 }

@@ -1,5 +1,8 @@
 "use client";
 
+import { Panneau } from "../panneau";
+import Commandes from "../_sections/commandes";
+import Itineraires from "../_sections/itineraires";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Carte, { Point, Trace } from "../../lib/Carte";
 import { Cadenas, Info, Plaque } from "../../ui";
@@ -190,6 +193,8 @@ export default function Planning() {
         <div><h1>Planning</h1><p>Glissez un arrêt vers un autre camion : heures et alertes sont recalculées aussitôt.</p></div>
         <input className="input" type="date" aria-label="Jour à planifier" value={jour} onChange={(e) => setJour(e.target.value || aujourdhui())} />
       </div>
+
+      <Panneau id="commandes" titre="Commandes du jour" defaut={!plan}><Commandes jour={jour} setJour={setJour} /></Panneau>
 
       <div className="barre-outils">
         <button className="btn btn-primary" onClick={optimiser} disabled={!!enCours}>{enCours ? "Calcul en cours…" : plan ? "Recalculer le plan" : "Optimiser"}</button>
@@ -452,6 +457,7 @@ export default function Planning() {
         </div>
       </dialog>
       {!plan && !erreur && <div className="rack-empty"><strong>Pas encore de plan pour ce jour</strong>Importez les commandes puis cliquez sur « Optimiser ».</div>}
+      <Panneau id="itineraire" titre="Calculer un itinéraire poids lourd"><Itineraires /></Panneau>
     </>
   );
 }
