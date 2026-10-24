@@ -432,10 +432,15 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 /* ---------- Sections repliables ---------- */
 .panneau { border-top: 1px solid var(--line); }
 .panneau:last-of-type { border-bottom: 1px solid var(--line); }
-.panneau > summary { display: flex; align-items: center; justify-content: space-between; min-height: 52px; cursor: pointer; list-style: none; }
+.panneau > summary { display: flex; align-items: center; justify-content: space-between; min-height: 60px; cursor: pointer; list-style: none; transition: color 0.15s var(--ease); }
 .panneau > summary::-webkit-details-marker { display: none; }
-.panneau > summary::after { content: "+"; font-size: 20px; color: var(--ink-3); }
-.panneau[open] > summary::after { content: "−"; }
-.panneau-corps { padding: 4px 0 28px; }
-.action-jour { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 16px 20px; margin-bottom: 24px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--white); }
-.action-jour p { margin: 0; }
+.panneau > summary h2 { font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+.panneau > summary:hover h2 { color: var(--signal); }
+.panneau > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 2px; }
+.panneau > summary::after { content: ""; width: 8px; height: 8px; margin-right: 4px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(45deg) translate(-2px, -2px); transition: transform 0.2s var(--ease); }
+.panneau[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.panneau-corps { padding: 4px 0 32px; }
+.action-jour { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 20px 24px; margin-bottom: 24px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--white); }
+.action-jour p { margin: 0; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+@media (max-width: 640px) { .action-jour { padding: 16px; } .action-jour .btn { width: 100%; justify-content: center; } }
+.panneau + .barre-outils { margin-top: 24px; }

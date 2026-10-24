@@ -80,7 +80,7 @@ export default function Admin() {
     <>
       <div className="page-head">
         <div>
-          <h1>Tableau de bord</h1>
+          <h1>Aujourd'hui</h1>
           <p>État de la flotte {jourCourant ? "aujourd'hui" : `le ${new Date(date).toLocaleDateString("fr-FR")}`}.</p>
         </div>
         <input className="input" type="date" aria-label="Jour affiché" value={date} onChange={(e) => setDate(e.target.value || aujourdhui())} />
@@ -88,14 +88,7 @@ export default function Admin() {
 
       {rappels && rappels.vehicules.length > 0 && jourCourant && (
         <div className="notice" role="status">
-          <span><strong>{rappels.vehicules.length} camion{rappels.vehicules.length > 1 ? "s" : ""} sans contrôle depuis {rappels.heure_rappel}</strong> : {rappels.vehicules.map((v) => v.plaque).join(", ")}</span>
-        </div>
-      )}
-
-      {aFaire > 0 && jourCourant && (
-        <div className="action-jour">
-          <p><strong>Mise en route :</strong> {aFaire} étape{aFaire > 1 ? "s" : ""} restante{aFaire > 1 ? "s" : ""} (camions, conducteurs, commandes…).</p>
-          <Link className="btn btn-sm" href="/admin/configuration#demarrer">Continuer</Link>
+          <span><strong>{rappels.vehicules.length} camion{rappels.vehicules.length > 1 ? "s" : ""} sans contrôle depuis {rappels.heure_rappel}</strong>{rappels.vehicules.length <= 4 && <> : {rappels.vehicules.map((v) => v.plaque).join(", ")}</>}</span>
         </div>
       )}
 
@@ -103,11 +96,12 @@ export default function Admin() {
         const [texte, lien, bouton] = journee.commandes === 0
           ? ["Aucune commande pour ce jour.", "/admin/planning#commandes", "Importer les commandes"]
           : !journee.plan ? [`${journee.commandes} commandes, pas encore de plan.`, "/admin/planning", "Optimiser les tournées"]
+          : journee.plan.statut === "echec" ? ["Le dernier calcul a échoué.", "/admin/planning", "Relancer l'optimisation"]
           : !journee.plan.publie_le ? ["Plan calculé, pas encore envoyé aux chauffeurs.", "/admin/planning", "Vérifier et publier"]
           : ["Plan publié : les chauffeurs ont leur tournée.", "", ""];
         return (
           <section aria-label="Livraisons du jour" style={{ marginBottom: 28 }}>
-            {journee.commandes > 0 && (
+            {journee.plan?.statut === "termine" && (
               <dl className="indicateurs" style={{ marginBottom: 12 }}>
                 <div><dt>Commandes</dt><dd className="num">{journee.commandes}</dd></div>
                 <div><dt>Tournées</dt><dd className="num">{journee.plan?.resume?.nb_tournees ?? "—"}</dd></div>
@@ -123,6 +117,10 @@ export default function Admin() {
           </section>
         );
       })()}
+
+      {aFaire > 0 && jourCourant && (
+        <p className="hint" style={{ margin: "-12px 0 28px" }}>Mise en route : {aFaire} étape{aFaire > 1 ? "s" : ""} restante{aFaire > 1 ? "s" : ""} · <Link href="/admin/configuration#demarrer">Continuer</Link></p>
+      )}
 
       <div className="filtres" role="group" aria-label="Afficher">
         <button className="filtre" aria-pressed={filtre === "traiter"} onClick={() => setFiltre("traiter")}>À traiter <span className="count">{aTraiter.length}</span></button>
