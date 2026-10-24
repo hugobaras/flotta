@@ -428,3 +428,14 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .info span { position: absolute; z-index: 5; left: 0; top: 26px; width: 260px; padding: 10px 12px; background: var(--white); border: 1px solid var(--line-strong); border-radius: var(--r); font-size: 13px; line-height: 1.45; color: var(--ink-2); font-weight: 400; }
 .pied-app { max-width: 1120px; margin: 0 auto; padding: 0 32px 48px; }
 @media (max-width: 800px) { .pied-app { padding: 0 16px 40px; } }
+
+/* ---------- Sections repliables ---------- */
+.panneau { border-top: 1px solid var(--line); }
+.panneau:last-of-type { border-bottom: 1px solid var(--line); }
+.panneau > summary { display: flex; align-items: center; justify-content: space-between; min-height: 52px; cursor: pointer; list-style: none; }
+.panneau > summary::-webkit-details-marker { display: none; }
+.panneau > summary::after { content: "+"; font-size: 20px; color: var(--ink-3); }
+.panneau[open] > summary::after { content: "−"; }
+.panneau-corps { padding: 4px 0 28px; }
+.action-jour { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 16px 20px; margin-bottom: 24px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--white); }
+.action-jour p { margin: 0; }

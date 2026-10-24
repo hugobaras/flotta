@@ -33,7 +33,7 @@ export default function Demarrer() {
   const faites = d?.etapes.filter((e) => e.fait).length ?? 0;
   return (
     <>
-      <div className="page-head"><div><h1>Démarrer</h1><p className="muted">Six étapes pour être opérationnel. {d && `${faites} faite${faites > 1 ? "s" : ""} sur ${d.etapes.filter((e) => e.fait !== null).length} vérifiables.`}</p></div></div>
+      <div className="page-head"><div><p className="muted">Six étapes pour être opérationnel. {d && `${faites} faite${faites > 1 ? "s" : ""} sur ${d.etapes.filter((e) => e.fait !== null).length} vérifiables.`}</p></div></div>
       {erreur && <div className="notice danger" role="alert">{erreur}</div>}
       <ol className="demarrage">
         {d?.etapes.map((e) => (

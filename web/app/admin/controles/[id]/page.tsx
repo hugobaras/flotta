@@ -53,7 +53,7 @@ export default function DetailControle({ params }: { params: Promise<{ id: strin
 
   return (
     <>
-      <p style={{ marginBottom: 20 }}><Link href="/admin/controles">Retour aux contrôles</Link></p>
+      <p style={{ marginBottom: 20 }}><Link href="/admin#controles">Retour</Link></p>
       <div className="detail-head">
         <Plaque size="xl">{d.plaque}</Plaque>
         {d.defaut_critique ? <Etat statut="bloque" label="Défaut critique" />

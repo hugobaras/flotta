@@ -65,36 +65,6 @@ export function Chevron({ sens }: { sens: "haut" | "bas" }) {
   );
 }
 
-export function ReglagesTabs({ actif }: { actif: "checklists" | "parametres" | "integrations" | "offre" }) {
-  return (
-    <nav className="filtres" aria-label="Réglages">
-      <a className="filtre" href="/admin/checklists" aria-current={actif === "checklists" ? "page" : undefined} style={{ textDecoration: "none" }}>Checklists</a>
-      <a className="filtre" href="/admin/parametres" aria-current={actif === "parametres" ? "page" : undefined} style={{ textDecoration: "none" }}>Alertes et société</a>
-      <a className="filtre" href="/admin/integrations" aria-current={actif === "integrations" ? "page" : undefined} style={{ textDecoration: "none" }}>Intégrations</a>
-      <a className="filtre" href="/admin/offre" aria-current={actif === "offre" ? "page" : undefined} style={{ textDecoration: "none" }}>Mon offre</a>
-    </nav>
-  );
-}
-
-export function FlotteTabs({ actif }: { actif: "vehicules" | "conducteurs" | "depots" }) {
-  return (
-    <nav className="filtres" aria-label="Flotte">
-      <a className="filtre" href="/admin/flotte" aria-current={actif === "vehicules" ? "page" : undefined} style={{ textDecoration: "none" }}>Véhicules</a>
-      <a className="filtre" href="/admin/conducteurs" aria-current={actif === "conducteurs" ? "page" : undefined} style={{ textDecoration: "none" }}>Conducteurs</a>
-      <a className="filtre" href="/admin/depots" aria-current={actif === "depots" ? "page" : undefined} style={{ textDecoration: "none" }}>Dépôts</a>
-    </nav>
-  );
-}
-
-export function CommandesTabs({ actif }: { actif: "commandes" | "itineraire" }) {
-  return (
-    <nav className="filtres" aria-label="Commandes">
-      <a className="filtre" href="/admin/commandes" aria-current={actif === "commandes" ? "page" : undefined} style={{ textDecoration: "none" }}>Commandes du jour</a>
-      <a className="filtre" href="/admin/itineraires" aria-current={actif === "itineraire" ? "page" : undefined} style={{ textDecoration: "none" }}>Itinéraire</a>
-    </nav>
-  );
-}
-
 export function BandeauPublic() {
   return (
     <header className="band">

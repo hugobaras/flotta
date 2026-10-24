@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Carte, { Point } from "../../lib/Carte";
-import { CommandesTabs, Info } from "../../ui";
+import { Info } from "../../ui";
 
 type Commande = {
   id: number; reference: string; client: string; adresse: string; lat: number | null; lng: number | null; geo_statut: string;
@@ -19,8 +19,10 @@ const GEO: Record<string, { libelle: string; couleur: string }> = {
 };
 const json = { "Content-Type": "application/json" };
 
-export default function Commandes() {
-  const [jour, setJour] = useState(aujourdhui);
+export default function Commandes({ jour: jourPlanning, setJour: setJourPlanning }: { jour?: string; setJour?: (j: string) => void }) {
+  const [jourLocal, setJourLocal] = useState(aujourdhui);
+  const jour = jourPlanning ?? jourLocal;
+  const setJour = setJourPlanning ?? setJourLocal;
   const [liste, setListe] = useState<Commande[] | null>(null);
   const [filtre, setFiltre] = useState<"verifier" | "toutes">("toutes");
   const [selection, setSelection] = useState<number | null>(null);
@@ -130,16 +132,15 @@ export default function Commandes() {
     <>
       <div className="page-head">
         <div>
-          <h1>Commandes</h1>
+          
           <p>Les livraisons du jour et leur position sur la carte.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input className="input" type="date" aria-label="Jour de livraison" value={jour} onChange={(e) => setJour(e.target.value || aujourdhui())} />
+          {!jourPlanning && <input className="input" type="date" aria-label="Jour de livraison" value={jour} onChange={(e) => setJour(e.target.value || aujourdhui())} />}
           {attente > 0 && <button className="btn" onClick={relancer}>Géocoder les {attente} en attente</button>}
           <button className="btn btn-primary" onClick={ouvrirImport}>Importer un fichier</button>
         </div>
       </div>
-      <CommandesTabs actif="commandes" />
       {message && <div className="notice" role="status">{message}</div>}
 
       <div className="filtres" role="group" aria-label="Afficher">

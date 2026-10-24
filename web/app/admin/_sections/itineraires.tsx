@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Carte, { Point } from "../../lib/Carte";
-import { CommandesTabs, Plaque } from "../../ui";
+import { Plaque } from "../../ui";
 
 type Vehicule = { id: number; plaque: string; actif: boolean; hauteur_m: number | null; largeur_m: number | null; longueur_m: number | null; ptac_kg: number | null };
 type Depot = { id: number; nom: string; lat: number | null; lng: number | null; par_defaut: boolean };
@@ -84,9 +84,8 @@ export default function Itineraires() {
   return (
     <>
       <div className="page-head">
-        <div><h1>Commandes</h1><p>Itinéraire poids lourd adapté au gabarit du véhicule choisi.</p></div>
+        <div><p>Itinéraire poids lourd adapté au gabarit du véhicule choisi.</p></div>
       </div>
-      <CommandesTabs actif="itineraire" />
 
       {dispo === false && <div className="notice danger" role="alert">Le service de calcul d'itinéraire poids lourd est indisponible pour le moment. Aucun itinéraire ne peut être calculé.</div>}
 

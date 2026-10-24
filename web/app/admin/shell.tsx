@@ -6,13 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { Brand } from "../ui";
 
 const NAV = [
-  { href: "/admin", label: "Tableau de bord", exact: true },
-  { href: "/admin/controles", label: "Contrôles" },
-  { href: "/admin/flotte", label: "Flotte", aussi: "/admin/conducteurs" },
-  { href: "/admin/commandes", label: "Commandes", aussi: "/admin/itineraires" },
+  { href: "/admin", label: "Aujourd'hui", exact: true, aussi: "/admin/controles" },
   { href: "/admin/planning", label: "Planning" },
-  { href: "/admin/parametres", label: "Réglages", aussi: "/admin/checklists" },
-  { href: "/admin/demarrer", label: "Démarrer" },
+  { href: "/admin/configuration", label: "Configuration" },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -52,7 +48,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <Brand href="/admin" />
           <nav className="nav" aria-label="Navigation principale">
             {[...NAV, ...(plateforme ? [{ href: "/admin/plateforme", label: "Plateforme" }] : [])].map(({ href, label, exact, aussi }) => (
-              <Link key={href} href={href} aria-current={(exact ? path === href : path.startsWith(href) || (aussi && path.startsWith(aussi))) ? "page" : undefined}>{label}</Link>
+              <Link key={href} href={href} aria-current={((exact ? path === href : path.startsWith(href)) || (aussi && path.startsWith(aussi))) ? "page" : undefined}>{label}</Link>
             ))}
           </nav>
           <div className="who">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ReglagesTabs } from "../../ui";
 
 type Params = { heure_rappel: string; retention_jours: number; alert_emails: string[]; logo: boolean; cout_km_eur: number; conso_l_100km: number; prix_carburant_eur_l: number; peage_eur_km: number };
 type Message = { ok: boolean; texte: string } | null;
@@ -51,11 +50,10 @@ export default function Parametres() {
     <>
       <div className="page-head">
         <div>
-          <h1>Réglages</h1>
+          
           <p>Alertes, rappels et conservation des données de votre société.</p>
         </div>
       </div>
-      <ReglagesTabs actif="parametres" />
 
       {message && <div className={`notice ${message.ok ? "ok" : "danger"}`} role="status">{message.texte}</div>}
 
