@@ -18,7 +18,7 @@ const STYLE = {
 export type Trace = { coords: [number, number][]; couleur: string };
 
 export default function Carte({ points, ligne, traces, onPoint, onCarte, curseur, hauteur = 420 }: {
-  points: Point[]; ligne?: [number, number][]; traces?: Trace[]; onPoint?: (id: number) => void; onCarte?: (lat: number, lng: number) => void; curseur?: boolean; hauteur?: number;
+  points: Point[]; ligne?: [number, number][]; traces?: Trace[]; onPoint?: (id: number) => void; onCarte?: (lat: number, lng: number) => void; curseur?: boolean; hauteur?: number | string;
 }) {
   const conteneur = useRef<HTMLDivElement>(null);
   const carte = useRef<import("maplibre-gl").Map | null>(null);

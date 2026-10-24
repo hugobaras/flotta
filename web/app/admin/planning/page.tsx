@@ -181,6 +181,10 @@ export default function Planning() {
   const retards = new Set((plan?.alertes ?? []).filter((a) => a.type === "retard" && a.commande_id).map((a) => a.commande_id));
   const points: Point[] = useMemo(() => (plan?.routes ?? []).flatMap((t) => t.arrets.filter((a) => a.lat !== null).map((a) => ({ id: a.order_id, lat: a.lat!, lng: a.lng!, couleur: couleurDe(t.vehicle_id), titre: `${t.plaque} · ${a.ordre}. ${a.reference}` }))), // eslint-disable-next-line react-hooks/exhaustive-deps
     [plan]);
+  const [pointsCommandes, setPointsCommandes] = useState<Point[]>([]);
+  useEffect(() => {
+    fetch(`/api/admin/commandes?date=${jour}`).then(async (r) => r.ok && setPointsCommandes((await r.json()).filter((c: { lat: number | null }) => c.lat !== null).map((c: { id: number; lat: number; lng: number; reference: string; adresse: string }) => ({ id: c.id, lat: c.lat, lng: c.lng, couleur: "#686d76", titre: `${c.reference} · ${c.adresse}` }))));
+  }, [jour, plan?.id]);
   const traces: Trace[] = useMemo(() => (plan?.routes ?? []).map((t) => ({ couleur: couleurDe(t.vehicle_id), coords: t.arrets.filter((a) => a.lat !== null).map((a) => [a.lng!, a.lat!] as [number, number]) })), // eslint-disable-next-line react-hooks/exhaustive-deps
     [plan]);
   const enCours = plan && (plan.statut === "en_attente" || plan.statut === "en_cours");
@@ -196,6 +200,8 @@ export default function Planning() {
 
       <Panneau id="commandes" titre="Commandes du jour"><Commandes jour={jour} setJour={setJour} /></Panneau>
 
+      <div className="plan-ecran">
+        <div className="plan-gauche">
       <div className="barre-outils">
         <button className="btn btn-primary" onClick={optimiser} disabled={!!enCours}>{enCours ? "Calcul en cours…" : plan ? "Recalculer le plan" : "Optimiser"}</button>
         <details className="options-calcul"><summary>Options de calcul</summary><div className="barre-outils">
@@ -297,7 +303,7 @@ export default function Planning() {
             </details>
           )}
 
-          <div className="split">
+          <div>
             <div>
               {utilisees.map((t, i) => (
                 <section key={t.vehicle_id} className="section" style={{ marginTop: i ? 32 : 0 }}
@@ -406,10 +412,6 @@ export default function Planning() {
                 </ul>
               </section>
             </div>
-            <div>
-              <Carte points={points} traces={traces} />
-              <p className="hint" style={{ marginTop: 6 }}>Les tracés pointillés montrent l'ordre de passage à vol d'oiseau, pas l'itinéraire routier.</p>
-            </div>
           </div>
         </>
       )}
@@ -459,6 +461,13 @@ export default function Planning() {
         </div>
       </dialog>
       {!plan && !erreur && <div className="rack-empty"><strong>Pas encore de plan pour ce jour</strong>Cliquez sur « Optimiser » pour répartir les commandes du jour sur vos camions (commandes à importer ci-dessus si besoin).</div>}
+        </div>
+        <div className="plan-carte">
+          <Carte points={points.length ? points : pointsCommandes} traces={traces} hauteur="100%" />
+          <p className="hint">{points.length ? "Les tracés pointillés montrent l'ordre de passage à vol d'oiseau, pas l'itinéraire routier." : pointsCommandes.length ? `${pointsCommandes.length} commandes du jour. Calculez le plan pour les répartir par camion.` : "Les commandes du jour s'afficheront ici."}</p>
+        </div>
+      </div>
+
       <Panneau id="itineraire" titre="Calculer un itinéraire poids lourd"><Itineraires /></Panneau>
     </>
   );

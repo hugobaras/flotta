@@ -459,3 +459,10 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .options-calcul { margin: 0 0 12px; }
 .options-calcul > summary { cursor: pointer; color: var(--ink-3); font-size: 14px; min-height: 36px; display: flex; align-items: center; }
 .options-calcul > summary:hover { color: var(--ink); }
+
+/* ---------- Planning : écran de travail (liste à gauche qui défile, carte fixe à droite) ---------- */
+.plan-ecran { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 32px; margin-top: 16px; }
+.plan-gauche { height: calc(100dvh - 190px); min-height: 480px; overflow-y: auto; padding-right: 8px; scrollbar-gutter: stable; }
+.plan-carte { height: calc(100dvh - 190px); min-height: 480px; display: grid; grid-template-rows: 1fr auto; gap: 8px; }
+.plan-carte .map { min-height: 0; height: 100% !important; }
+@media (max-width: 960px) { .plan-ecran { grid-template-columns: minmax(0, 1fr); } .plan-gauche { height: auto; overflow: visible; } .plan-carte { height: 45dvh; min-height: 280px; order: -1; } }
