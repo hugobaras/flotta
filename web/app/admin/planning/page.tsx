@@ -43,6 +43,7 @@ export default function Planning() {
   const [tempsMax, setTempsMax] = useState(30);
   const [rotations, setRotations] = useState(true);  // plusieurs sorties du dépôt par camion
   const [rechargement, setRechargement] = useState(45);
+  const [ouverte, setOuverte] = useState<number | null | undefined>(undefined);  // tournée dont les arrêts sont déroulés (la première par défaut)
   const [glisse, setGlisse] = useState<number | null>(null);
   const [sur, setSur] = useState<string | null>(null);
   const [pro, setPro] = useState(true);
@@ -305,7 +306,7 @@ export default function Planning() {
 
           <div>
             <div>
-              {utilisees.map((t, i) => (
+              {utilisees.map((t, i) => { const ouvert = ouverte === undefined ? i === 0 : ouverte === t.vehicle_id; return (
                 <section key={t.vehicle_id} className="section" style={{ marginTop: i ? 32 : 0 }}
                   onDragOver={(e) => { if (glisse !== null && !t.verrouille) { e.preventDefault(); setSur(`r${t.vehicle_id}`); } }}
                   onDragLeave={() => setSur(null)}
@@ -318,19 +319,6 @@ export default function Planning() {
                     </span>
                     <small>{t.arrets.length ? `${hhmm(t.depart_min)} → ${hhmm(t.retour_min)} · ${t.distance_km} km · ${t.charge_kg} kg · ${t.charge_palettes} pal.` : "Aucun arrêt"}</small>
                   </h2>
-                  <div className="conducteur-ligne">
-                    <label className="hint" htmlFor={`cd-${t.vehicle_id}`}>Conducteur</label>
-                    <select id={`cd-${t.vehicle_id}`} className="select" disabled={t.verrouille} value={t.conducteur_id ?? ""}
-                      onChange={(e) => appeler("affecter", { vehicle_id: t.vehicle_id, conducteur_id: e.target.value ? Number(e.target.value) : null })}>
-                      <option value="">Sans conducteur (règles par tournée)</option>
-                      {plan!.conducteurs.map((c) => <option key={c.id} value={c.id} disabled={c.vehicle_id !== null && c.vehicle_id !== t.vehicle_id}>{c.nom}</option>)}
-                    </select>
-                    {t.arrets.length > 0 && t.plafond_conduite_min !== null && (
-                      <span className={t.conduite_restante_min !== null && t.conduite_restante_min < 0 ? "delta pire" : "muted"}>
-                        Conduite {duree(t.conduite_min)} sur {duree(t.plafond_conduite_min)} · {t.pauses.length} pause{t.pauses.length > 1 ? "s" : ""} de 45 min
-                      </span>
-                    )}
-                  </div>
                   {t.arrets.length > 0 && (
                     <>
                       <div className="frise" role="img" aria-label={`Frise horaire de ${t.plaque}`}>
@@ -347,6 +335,22 @@ export default function Planning() {
                       <div className="frise-axe" aria-hidden><span>{hhmm(bornes.debut)}</span><span>{hhmm(bornes.fin)}</span></div>
                     </>
                   )}
+                  {t.arrets.length > 0 && <button className="link-btn" aria-expanded={ouvert} onClick={() => setOuverte(ouvert ? null : t.vehicle_id)}>{ouvert ? "Masquer les arrêts" : `Voir les ${t.arrets.length} arrêts`}</button>}
+                  {ouvert && (
+                    <>
+                  <div className="conducteur-ligne">
+                    <label className="hint" htmlFor={`cd-${t.vehicle_id}`}>Conducteur</label>
+                    <select id={`cd-${t.vehicle_id}`} className="select" disabled={t.verrouille} value={t.conducteur_id ?? ""}
+                      onChange={(e) => appeler("affecter", { vehicle_id: t.vehicle_id, conducteur_id: e.target.value ? Number(e.target.value) : null })}>
+                      <option value="">Sans conducteur (règles par tournée)</option>
+                      {plan!.conducteurs.map((c) => <option key={c.id} value={c.id} disabled={c.vehicle_id !== null && c.vehicle_id !== t.vehicle_id}>{c.nom}</option>)}
+                    </select>
+                    {t.arrets.length > 0 && t.plafond_conduite_min !== null && (
+                      <span className={t.conduite_restante_min !== null && t.conduite_restante_min < 0 ? "delta pire" : "muted"}>
+                        Conduite {duree(t.conduite_min)} sur {duree(t.plafond_conduite_min)} · {t.pauses.length} pause{t.pauses.length > 1 ? "s" : ""} de 45 min
+                      </span>
+                    )}
+                  </div>
                   <ol className="items" style={{ borderBottom: 0 }}>
                     {t.arrets.map((a, n) => (
                       <Fragment key={a.id}>
@@ -392,8 +396,10 @@ export default function Planning() {
                       <li key={`pf${d}`} className="pause-ligne"><span className="heure">{hhmm(d)}</span><span className="corps">Pause obligatoire de {Math.round(f - d)} min sur le retour</span></li>
                     ))}
                   </ol>
+                    </>
+                  )}
                 </section>
-              ))}
+              ); })}
 
               <section className="section" aria-labelledby="non-aff" onDragOver={(e) => { if (glisse !== null) { e.preventDefault(); setSur("non"); } }} onDragLeave={() => setSur(null)}
                 onDrop={(e) => { e.preventDefault(); setSur(null); if (glisse !== null) deplacer(glisse, null); setGlisse(null); }}>
