@@ -28,7 +28,7 @@ export default function Controles() {
     <>
       <div className="page-head">
         <div>
-          <h1>Contrôles</h1>
+          
           <p>Historique des contrôles avant départ, du plus récent au plus ancien.</p>
         </div>
       </div>

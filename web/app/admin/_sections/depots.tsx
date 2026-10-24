@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FlotteTabs } from "../../ui";
 
 type Depot = { id: number; nom: string; adresse: string; lat: number | null; lng: number | null; ouverture: string; fermeture: string; par_defaut: boolean };
 const json = { "Content-Type": "application/json" };
@@ -47,9 +46,8 @@ export default function Depots() {
   return (
     <>
       <div className="page-head">
-        <div><h1>Flotte</h1><p>Les dépôts sont les points de départ et de retour des tournées.</p></div>
+        <div><p>Les dépôts sont les points de départ et de retour des tournées.</p></div>
       </div>
-      <FlotteTabs actif="depots" />
 
       <form onSubmit={creer} className="form-grid" style={{ marginBottom: 24 }}>
         <div className="field"><label htmlFor="d-nom">Nom</label><input id="d-nom" className="input" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} required minLength={2} /></div>

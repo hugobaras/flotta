@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FlotteTabs, Info } from "../../ui";
+import { Info } from "../../ui";
 
 type Conducteur = { id: number; nom: string; actif: boolean; vehicule_habituel_id: number | null; vehicule_habituel: string | null; email: string | null };
 type Vehicule = { id: number; plaque: string };
@@ -113,11 +113,10 @@ export default function Conducteurs() {
     <>
       <div className="page-head">
         <div>
-          <h1>Flotte</h1>
+          
           <p>Chaque conducteur a un code à 4 chiffres pour s'identifier sur son téléphone avant un contrôle.</p>
         </div>
       </div>
-      <FlotteTabs actif="conducteurs" />
 
       {pin && (
         <div className="notice ok" role="status">

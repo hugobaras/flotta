@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FlotteTabs, Plaque } from "../../ui";
+import { Plaque } from "../../ui";
 
 type Vehicule = {
   id: number; plaque: string; type: string; actif: boolean; hauteur_m: number | null; largeur_m: number | null; longueur_m: number | null;
@@ -108,7 +108,7 @@ export default function Flotte() {
     <>
       <div className="page-head">
         <div>
-          <h1>Flotte</h1>
+          
           <p>Véhicules, gabarit et capacité. Le gabarit sert au calcul d'itinéraire poids lourd.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -117,7 +117,6 @@ export default function Flotte() {
           <button className="btn btn-primary" onClick={() => ouvrir()}>Ajouter un véhicule</button>
         </div>
       </div>
-      <FlotteTabs actif="vehicules" />
 
       {liste.length === 0 ? (
         <div className="rack-empty"><strong>Aucun véhicule</strong>Ajoutez vos camions un par un ou importez un fichier CSV ou Excel.</div>

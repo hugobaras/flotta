@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import GrilleOffres from "../../GrilleOffres";
-import { ReglagesTabs } from "../../ui";
 
 const STATUTS: Record<string, string> = { essai: "Période d'essai", actif: "Actif", suspendu: "Suspendu" };
 
@@ -13,10 +12,9 @@ export default function MonOffre() {
   }, []);
   return (
     <>
-      <div className="page-head"><div><h1>Réglages</h1>
+      <div className="page-head"><div>
         {me && <p className="muted">Offre {me.offre === "pro" ? "Pro" : "Essentiel"}{me.camions_factures ? ` · ${me.camions_factures} camions facturés` : ""}{me.statut_offre ? ` · ${STATUTS[me.statut_offre]}` : ""}</p>}
       </div></div>
-      <ReglagesTabs actif="offre" />
       <div style={{ marginTop: 24 }}>
         <GrilleOffres courante={me?.offre} action={<p className="hint" style={{ marginTop: 8 }}>Pour changer d'offre ou de nombre de camions, contactez votre interlocuteur Flotta.</p>} />
       </div>
