@@ -194,7 +194,7 @@ export default function Planning() {
         <input className="input" type="date" aria-label="Jour à planifier" value={jour} onChange={(e) => setJour(e.target.value || aujourdhui())} />
       </div>
 
-      <Panneau id="commandes" titre="Commandes du jour" defaut={!plan}><Commandes jour={jour} setJour={setJour} /></Panneau>
+      <Panneau id="commandes" titre="Commandes du jour"><Commandes jour={jour} setJour={setJour} /></Panneau>
 
       <div className="barre-outils">
         <button className="btn btn-primary" onClick={optimiser} disabled={!!enCours}>{enCours ? "Calcul en cours…" : plan ? "Recalculer le plan" : "Optimiser"}</button>

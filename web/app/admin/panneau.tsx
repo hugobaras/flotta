@@ -12,7 +12,7 @@ export function Panneau({ id, titre, defaut = false, children }: { id: string; t
     if (window.location.hash === `#${id}`) {
       setOuvert(true);
       setMonte(true);
-      ref.current?.scrollIntoView();
+      setTimeout(() => ref.current?.scrollIntoView({ block: "start" }), 150);
     }
   }, [id]);
 
