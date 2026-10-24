@@ -444,3 +444,18 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .action-jour p { margin: 0; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
 @media (max-width: 640px) { .action-jour { padding: 16px; } .action-jour .btn { width: 100%; justify-content: center; } }
 .panneau + .barre-outils { margin-top: 24px; }
+
+/* ---------- Ma journée ---------- */
+.journee { margin-bottom: 36px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--white); }
+.journee-ligne { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; }
+.journee-ligne + .journee-ligne { border-top: 1px solid var(--line); }
+.journee-ligne strong { display: block; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+.journee-ligne .muted { display: block; margin-top: 2px; font-size: 14px; }
+.journee-point { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line-strong); display: grid; place-items: center; }
+.journee-ligne[data-fait] .journee-point { border-color: transparent; }
+.journee > .hint { margin: 0; padding: 12px 20px; border-top: 1px solid var(--line); background: var(--bg); border-radius: 0 0 var(--r) var(--r); }
+@media (max-width: 640px) { .journee-ligne { grid-template-columns: 28px 1fr; } .journee-ligne .btn { grid-column: 1 / -1; justify-content: center; } }
+.panneau-etat { margin-left: auto; margin-right: 16px; font-size: 13px; font-weight: 500; color: var(--signal); }
+.options-calcul { margin: 0 0 12px; }
+.options-calcul > summary { cursor: pointer; color: var(--ink-3); font-size: 14px; min-height: 36px; display: flex; align-items: center; }
+.options-calcul > summary:hover { color: var(--ink); }

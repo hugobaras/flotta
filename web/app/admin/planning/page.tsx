@@ -198,6 +198,7 @@ export default function Planning() {
 
       <div className="barre-outils">
         <button className="btn btn-primary" onClick={optimiser} disabled={!!enCours}>{enCours ? "Calcul en cours…" : plan ? "Recalculer le plan" : "Optimiser"}</button>
+        <details className="options-calcul"><summary>Options de calcul</summary><div className="barre-outils">
         <label className="field" style={{ gridAutoFlow: "column", alignItems: "center", gap: 6 }}>
           <span className="hint">Calcul max.</span>
           <input className="input" type="number" min={1} max={120} value={tempsMax} onChange={(e) => setTempsMax(Number(e.target.value))} style={{ width: 72, minHeight: 34 }} aria-label="Temps de calcul maximal en secondes" />
@@ -209,6 +210,7 @@ export default function Planning() {
           {rotations && <><input className="input" type="number" min={15} max={240} value={rechargement} onChange={(e) => setRechargement(Number(e.target.value))} style={{ width: 72, minHeight: 34 }} aria-label="Temps de rechargement au dépôt en minutes" /><span className="hint">min de rechargement</span></>}
         </label>
         <Info>Un camion qui rentre au dépôt peut recharger et repartir (3 sorties au plus). Le chargement compte comme du travail, pas comme une pause du conducteur.</Info>
+        </div></details>
         {termine && (
           <>
             <button className="btn" onClick={() => appeler("reoptimiser")}>Réoptimiser (hors verrouillés)</button>
@@ -456,7 +458,7 @@ export default function Planning() {
           <div className="dialog-actions"><button className="btn" onClick={() => dialogueLiens.current?.close()}>Fermer</button></div>
         </div>
       </dialog>
-      {!plan && !erreur && <div className="rack-empty"><strong>Pas encore de plan pour ce jour</strong>Importez les commandes puis cliquez sur « Optimiser ».</div>}
+      {!plan && !erreur && <div className="rack-empty"><strong>Pas encore de plan pour ce jour</strong>Cliquez sur « Optimiser » pour répartir les commandes du jour sur vos camions (commandes à importer ci-dessus si besoin).</div>}
       <Panneau id="itineraire" titre="Calculer un itinéraire poids lourd"><Itineraires /></Panneau>
     </>
   );
