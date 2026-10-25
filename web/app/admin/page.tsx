@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { dateHeure, Etat, Macaron, Plaque, Statut } from "../ui";
+import { Panneau } from "./panneau";
+import Controles from "./_sections/controles";
+import { Coche, dateHeure, Etat, Macaron, Plaque, Statut } from "../ui";
 
 type Ligne = { vehicle_id: number; plaque: string; statut: Statut; controle: { id: number; conducteur: string; created_at: string } | null };
 type Rappels = { heure_rappel: string; vehicules: { id: number; plaque: string }[] };
-type Journee = { commandes: number; aPlanifier: number; plan: { id: number; statut: string; resume: { nb_tournees: number; nb_commandes: number; nb_non_affectees: number; km: number; nb_alertes: number } | null } | null };
+type Journee = { commandes: number; aPlanifier: number; plan: { id: number; statut: string; publie_le?: string | null; resume: { nb_tournees: number; nb_commandes: number; nb_non_affectees: number; km: number; nb_alertes: number } | null } | null };
 type Filtre = "traiter" | "controle" | "tous";
 
 const aujourdhui = () => new Date().toLocaleDateString("sv-SE"); // AAAA-MM-JJ, jour local
@@ -22,6 +24,7 @@ export default function Admin() {
   const [ouvert, setOuvert] = useState<number | null>(null);
   const [motif, setMotif] = useState("");
   const [erreur, setErreur] = useState("");
+  const [aFaire, setAFaire] = useState(0);
 
   const charger = useCallback(async () => {
     const r = await fetch(`/api/admin/tableau${date ? `?date=${date}` : ""}`);
@@ -37,6 +40,10 @@ export default function Admin() {
       setJournee({ commandes: cmds.length, aPlanifier: cmds.filter((x) => x.statut === "a_planifier").length, plan });
     }
   }, [date]);
+
+  useEffect(() => {
+    fetch("/api/admin/demarrage").then(async (r) => r.ok && setAFaire((await r.json()).etapes.filter((e: { fait: boolean | null }) => e.fait === false).length));
+  }, []);
 
   useEffect(() => {
     charger();
@@ -73,35 +80,42 @@ export default function Admin() {
     <>
       <div className="page-head">
         <div>
-          <h1>Tableau de bord</h1>
+          <h1>Aujourd'hui</h1>
           <p>État de la flotte {jourCourant ? "aujourd'hui" : `le ${new Date(date).toLocaleDateString("fr-FR")}`}.</p>
         </div>
         <input className="input" type="date" aria-label="Jour affiché" value={date} onChange={(e) => setDate(e.target.value || aujourdhui())} />
       </div>
 
-      {rappels && rappels.vehicules.length > 0 && jourCourant && (
-        <div className="notice" role="status">
-          <span><strong>{rappels.vehicules.length} camion{rappels.vehicules.length > 1 ? "s" : ""} sans contrôle depuis {rappels.heure_rappel}</strong> : {rappels.vehicules.map((v) => v.plaque).join(", ")}</span>
-        </div>
-      )}
+      {journee && (() => {
+        const total = lignes.length;
+        const bloques = lignes.filter((l) => l.statut === "bloque").length;
+        const p = journee.plan;
+        const resume = p?.statut === "termine" && p.resume ? `${p.resume.nb_tournees} tournée${p.resume.nb_tournees > 1 ? "s" : ""}${p.resume.nb_non_affectees ? ` · ${p.resume.nb_non_affectees} commande${p.resume.nb_non_affectees > 1 ? "s" : ""} sans camion` : ""}${p.resume.nb_alertes ? ` · ${p.resume.nb_alertes} point${p.resume.nb_alertes > 1 ? "s" : ""} à vérifier` : ""}` : "";
+        type Etape = { fait: boolean; titre: string; detail?: string; lien: string; action: string };
+        const etapes: Etape[] = [
+          { fait: total > 0 && controles.length === total, titre: total === 0 ? "Aucun camion" : `${controles.length} camion${controles.length > 1 ? "s" : ""} sur ${total} contrôlé${controles.length > 1 ? "s" : ""}`, detail: bloques ? `${bloques} bloqué${bloques > 1 ? "s" : ""}, à débloquer ci-dessous` : rappels && rappels.vehicules.length > 0 && jourCourant ? `Pas de contrôle depuis ${rappels.heure_rappel} : ${rappels.vehicules.length <= 3 ? rappels.vehicules.map((v) => v.plaque).join(", ") : `${rappels.vehicules.length} camions`}` : undefined, lien: total === 0 ? "/admin/configuration#flotte" : "#liste", action: total === 0 ? "Ajouter des camions" : "Voir la liste" },
+          { fait: journee.commandes > 0, titre: journee.commandes ? `${journee.commandes} commande${journee.commandes > 1 ? "s" : ""} à livrer` : "Aucune commande pour ce jour", lien: "/admin/planning#commandes", action: journee.commandes ? "Voir" : "Importer un fichier" },
+          { fait: !!p?.publie_le, titre: p?.publie_le ? "Plan envoyé aux chauffeurs" : !p ? "Pas encore de plan" : p.statut === "echec" ? "Le dernier calcul a échoué" : p.statut === "termine" ? "Plan prêt, pas encore envoyé aux chauffeurs" : "Calcul en cours…", detail: resume || undefined, lien: "/admin/planning", action: !p ? "Calculer les tournées" : p.statut === "echec" ? "Relancer" : p.publie_le ? "Ouvrir" : "Vérifier et envoyer" },
+        ];
+        const premier = etapes.findIndex((e, i) => i > 0 && !e.fait);
+        return (
+          <section aria-label="Ma journée" className="journee">
+            {etapes.map((e, i) => (
+              <div key={i} className="journee-ligne" data-fait={e.fait || undefined}>
+                <span className="journee-point" aria-hidden>{e.fait ? <Coche ok /> : null}</span>
+                <div>
+                  <strong>{e.titre}</strong>
+                  {e.detail && <span className="muted">{e.detail}</span>}
+                </div>
+                <Link className={i === premier ? "btn btn-primary" : "btn btn-ghost btn-sm"} href={e.lien}>{e.action}</Link>
+              </div>
+            ))}
+            {aFaire > 0 && jourCourant && <p className="hint">Mise en route : {aFaire} étape{aFaire > 1 ? "s" : ""} de configuration restante{aFaire > 1 ? "s" : ""} · <Link href="/admin/configuration#demarrer">Continuer</Link></p>}
+          </section>
+        );
+      })()}
 
-      {journee && (
-        <section aria-label="Livraisons du jour" style={{ marginBottom: 28 }}>
-          {journee.commandes === 0 ? (
-            <p className="muted">Aucune commande ce jour. <Link href="/admin/commandes">Importer des commandes</Link></p>
-          ) : (
-            <dl className="indicateurs" style={{ marginBottom: 8 }}>
-              <div><dt>Commandes</dt><dd className="num">{journee.commandes}</dd></div>
-              <div><dt>Tournées</dt><dd className="num">{journee.plan?.resume?.nb_tournees ?? "—"}</dd></div>
-              <div><dt>Non affectées</dt><dd className="num">{journee.plan?.resume ? journee.plan.resume.nb_non_affectees : journee.aPlanifier}</dd></div>
-              <div><dt>Alertes du plan</dt><dd className="num">{journee.plan?.resume?.nb_alertes ?? "—"}</dd></div>
-            </dl>
-          )}
-          {journee.commandes > 0 && <p className="hint">{journee.plan ? <Link href="/admin/planning">Ouvrir le planning</Link> : <>Pas encore de plan : <Link href="/admin/planning">lancer l'optimisation</Link></>} · <Link href="/admin/commandes">Voir les commandes</Link></p>}
-        </section>
-      )}
-
-      <div className="filtres" role="group" aria-label="Afficher">
+      <div id="liste" className="filtres" role="group" aria-label="Afficher">
         <button className="filtre" aria-pressed={filtre === "traiter"} onClick={() => setFiltre("traiter")}>À traiter <span className="count">{aTraiter.length}</span></button>
         <button className="filtre" aria-pressed={filtre === "controle"} onClick={() => setFiltre("controle")}><Macaron statut="controle" />Contrôlés <span className="count">{controles.length}</span></button>
         <button className="filtre" aria-pressed={filtre === "tous"} onClick={() => setFiltre("tous")}>Tous <span className="count">{lignes.length}</span></button>
@@ -161,6 +175,9 @@ export default function Admin() {
           </table>
         </div>
       )}
+      <div style={{ marginTop: 40 }}>
+        <Panneau id="controles" titre="Historique des contrôles"><Controles /></Panneau>
+      </div>
     </>
   );
 }

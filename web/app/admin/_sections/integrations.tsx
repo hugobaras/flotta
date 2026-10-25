@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ReglagesTabs } from "../../ui";
 
 type Cle = { id: number; nom: string; apercu: string; derniere_utilisation: string | null; revoquee: boolean };
 type Hook = { id: number; url: string; evenements: string[]; actif: boolean };
@@ -61,8 +60,7 @@ export default function Integrations() {
 
   return (
     <>
-      <div className="page-head"><div><h1>Réglages</h1><p className="muted">Clés API et webhooks pour relier Flotta à votre logiciel de transport.</p></div></div>
-      <ReglagesTabs actif="integrations" />
+      <div className="page-head"><div><p className="muted">Clés API et webhooks pour relier Flotta à votre logiciel de transport.</p></div></div>
       {erreur && <div className="notice danger" role="alert">{erreur}</div>}
       {secret && (
         <div className="notice" role="status">

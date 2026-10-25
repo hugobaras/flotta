@@ -1,5 +1,8 @@
 "use client";
 
+import { Panneau } from "../panneau";
+import Commandes from "../_sections/commandes";
+import Itineraires from "../_sections/itineraires";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Carte, { Point, Trace } from "../../lib/Carte";
 import { Cadenas, Info, Plaque } from "../../ui";
@@ -40,6 +43,7 @@ export default function Planning() {
   const [tempsMax, setTempsMax] = useState(30);
   const [rotations, setRotations] = useState(true);  // plusieurs sorties du dépôt par camion
   const [rechargement, setRechargement] = useState(45);
+  const [ouverte, setOuverte] = useState<number | null | undefined>(undefined);  // tournée dont les arrêts sont déroulés (la première par défaut)
   const [glisse, setGlisse] = useState<number | null>(null);
   const [sur, setSur] = useState<string | null>(null);
   const [pro, setPro] = useState(true);
@@ -178,6 +182,10 @@ export default function Planning() {
   const retards = new Set((plan?.alertes ?? []).filter((a) => a.type === "retard" && a.commande_id).map((a) => a.commande_id));
   const points: Point[] = useMemo(() => (plan?.routes ?? []).flatMap((t) => t.arrets.filter((a) => a.lat !== null).map((a) => ({ id: a.order_id, lat: a.lat!, lng: a.lng!, couleur: couleurDe(t.vehicle_id), titre: `${t.plaque} · ${a.ordre}. ${a.reference}` }))), // eslint-disable-next-line react-hooks/exhaustive-deps
     [plan]);
+  const [pointsCommandes, setPointsCommandes] = useState<Point[]>([]);
+  useEffect(() => {
+    fetch(`/api/admin/commandes?date=${jour}`).then(async (r) => r.ok && setPointsCommandes((await r.json()).filter((c: { lat: number | null }) => c.lat !== null).map((c: { id: number; lat: number; lng: number; reference: string; adresse: string }) => ({ id: c.id, lat: c.lat, lng: c.lng, couleur: "#686d76", titre: `${c.reference} · ${c.adresse}` }))));
+  }, [jour, plan?.id]);
   const traces: Trace[] = useMemo(() => (plan?.routes ?? []).map((t) => ({ couleur: couleurDe(t.vehicle_id), coords: t.arrets.filter((a) => a.lat !== null).map((a) => [a.lng!, a.lat!] as [number, number]) })), // eslint-disable-next-line react-hooks/exhaustive-deps
     [plan]);
   const enCours = plan && (plan.statut === "en_attente" || plan.statut === "en_cours");
@@ -191,8 +199,13 @@ export default function Planning() {
         <input className="input" type="date" aria-label="Jour à planifier" value={jour} onChange={(e) => setJour(e.target.value || aujourdhui())} />
       </div>
 
+      <Panneau id="commandes" titre="Commandes du jour"><Commandes jour={jour} setJour={setJour} /></Panneau>
+
+      <div className="plan-ecran">
+        <div className="plan-gauche">
       <div className="barre-outils">
         <button className="btn btn-primary" onClick={optimiser} disabled={!!enCours}>{enCours ? "Calcul en cours…" : plan ? "Recalculer le plan" : "Optimiser"}</button>
+        <details className="options-calcul"><summary>Options de calcul</summary><div className="barre-outils">
         <label className="field" style={{ gridAutoFlow: "column", alignItems: "center", gap: 6 }}>
           <span className="hint">Calcul max.</span>
           <input className="input" type="number" min={1} max={120} value={tempsMax} onChange={(e) => setTempsMax(Number(e.target.value))} style={{ width: 72, minHeight: 34 }} aria-label="Temps de calcul maximal en secondes" />
@@ -204,6 +217,7 @@ export default function Planning() {
           {rotations && <><input className="input" type="number" min={15} max={240} value={rechargement} onChange={(e) => setRechargement(Number(e.target.value))} style={{ width: 72, minHeight: 34 }} aria-label="Temps de rechargement au dépôt en minutes" /><span className="hint">min de rechargement</span></>}
         </label>
         <Info>Un camion qui rentre au dépôt peut recharger et repartir (3 sorties au plus). Le chargement compte comme du travail, pas comme une pause du conducteur.</Info>
+        </div></details>
         {termine && (
           <>
             <button className="btn" onClick={() => appeler("reoptimiser")}>Réoptimiser (hors verrouillés)</button>
@@ -290,9 +304,9 @@ export default function Planning() {
             </details>
           )}
 
-          <div className="split">
+          <div>
             <div>
-              {utilisees.map((t, i) => (
+              {utilisees.map((t, i) => { const ouvert = ouverte === undefined ? i === 0 : ouverte === t.vehicle_id; return (
                 <section key={t.vehicle_id} className="section" style={{ marginTop: i ? 32 : 0 }}
                   onDragOver={(e) => { if (glisse !== null && !t.verrouille) { e.preventDefault(); setSur(`r${t.vehicle_id}`); } }}
                   onDragLeave={() => setSur(null)}
@@ -305,19 +319,6 @@ export default function Planning() {
                     </span>
                     <small>{t.arrets.length ? `${hhmm(t.depart_min)} → ${hhmm(t.retour_min)} · ${t.distance_km} km · ${t.charge_kg} kg · ${t.charge_palettes} pal.` : "Aucun arrêt"}</small>
                   </h2>
-                  <div className="conducteur-ligne">
-                    <label className="hint" htmlFor={`cd-${t.vehicle_id}`}>Conducteur</label>
-                    <select id={`cd-${t.vehicle_id}`} className="select" disabled={t.verrouille} value={t.conducteur_id ?? ""}
-                      onChange={(e) => appeler("affecter", { vehicle_id: t.vehicle_id, conducteur_id: e.target.value ? Number(e.target.value) : null })}>
-                      <option value="">Sans conducteur (règles par tournée)</option>
-                      {plan!.conducteurs.map((c) => <option key={c.id} value={c.id} disabled={c.vehicle_id !== null && c.vehicle_id !== t.vehicle_id}>{c.nom}</option>)}
-                    </select>
-                    {t.arrets.length > 0 && t.plafond_conduite_min !== null && (
-                      <span className={t.conduite_restante_min !== null && t.conduite_restante_min < 0 ? "delta pire" : "muted"}>
-                        Conduite {duree(t.conduite_min)} sur {duree(t.plafond_conduite_min)} · {t.pauses.length} pause{t.pauses.length > 1 ? "s" : ""} de 45 min
-                      </span>
-                    )}
-                  </div>
                   {t.arrets.length > 0 && (
                     <>
                       <div className="frise" role="img" aria-label={`Frise horaire de ${t.plaque}`}>
@@ -334,6 +335,22 @@ export default function Planning() {
                       <div className="frise-axe" aria-hidden><span>{hhmm(bornes.debut)}</span><span>{hhmm(bornes.fin)}</span></div>
                     </>
                   )}
+                  {t.arrets.length > 0 && <button className="link-btn" aria-expanded={ouvert} onClick={() => setOuverte(ouvert ? null : t.vehicle_id)}>{ouvert ? "Masquer les arrêts" : `Voir les ${t.arrets.length} arrêts`}</button>}
+                  {ouvert && (
+                    <>
+                  <div className="conducteur-ligne">
+                    <label className="hint" htmlFor={`cd-${t.vehicle_id}`}>Conducteur</label>
+                    <select id={`cd-${t.vehicle_id}`} className="select" disabled={t.verrouille} value={t.conducteur_id ?? ""}
+                      onChange={(e) => appeler("affecter", { vehicle_id: t.vehicle_id, conducteur_id: e.target.value ? Number(e.target.value) : null })}>
+                      <option value="">Sans conducteur (règles par tournée)</option>
+                      {plan!.conducteurs.map((c) => <option key={c.id} value={c.id} disabled={c.vehicle_id !== null && c.vehicle_id !== t.vehicle_id}>{c.nom}</option>)}
+                    </select>
+                    {t.arrets.length > 0 && t.plafond_conduite_min !== null && (
+                      <span className={t.conduite_restante_min !== null && t.conduite_restante_min < 0 ? "delta pire" : "muted"}>
+                        Conduite {duree(t.conduite_min)} sur {duree(t.plafond_conduite_min)} · {t.pauses.length} pause{t.pauses.length > 1 ? "s" : ""} de 45 min
+                      </span>
+                    )}
+                  </div>
                   <ol className="items" style={{ borderBottom: 0 }}>
                     {t.arrets.map((a, n) => (
                       <Fragment key={a.id}>
@@ -379,8 +396,10 @@ export default function Planning() {
                       <li key={`pf${d}`} className="pause-ligne"><span className="heure">{hhmm(d)}</span><span className="corps">Pause obligatoire de {Math.round(f - d)} min sur le retour</span></li>
                     ))}
                   </ol>
+                    </>
+                  )}
                 </section>
-              ))}
+              ); })}
 
               <section className="section" aria-labelledby="non-aff" onDragOver={(e) => { if (glisse !== null) { e.preventDefault(); setSur("non"); } }} onDragLeave={() => setSur(null)}
                 onDrop={(e) => { e.preventDefault(); setSur(null); if (glisse !== null) deplacer(glisse, null); setGlisse(null); }}>
@@ -398,10 +417,6 @@ export default function Planning() {
                   ))}
                 </ul>
               </section>
-            </div>
-            <div>
-              <Carte points={points} traces={traces} />
-              <p className="hint" style={{ marginTop: 6 }}>Les tracés pointillés montrent l'ordre de passage à vol d'oiseau, pas l'itinéraire routier.</p>
             </div>
           </div>
         </>
@@ -451,7 +466,15 @@ export default function Planning() {
           <div className="dialog-actions"><button className="btn" onClick={() => dialogueLiens.current?.close()}>Fermer</button></div>
         </div>
       </dialog>
-      {!plan && !erreur && <div className="rack-empty"><strong>Pas encore de plan pour ce jour</strong>Importez les commandes puis cliquez sur « Optimiser ».</div>}
+      {!plan && !erreur && <div className="rack-empty"><strong>Pas encore de plan pour ce jour</strong>Cliquez sur « Optimiser » pour répartir les commandes du jour sur vos camions (commandes à importer ci-dessus si besoin).</div>}
+        </div>
+        <div className="plan-carte">
+          <Carte points={points.length ? points : pointsCommandes} traces={traces} hauteur="100%" />
+          <p className="hint">{points.length ? "Les tracés pointillés montrent l'ordre de passage à vol d'oiseau, pas l'itinéraire routier." : pointsCommandes.length ? `${pointsCommandes.length} commandes du jour. Calculez le plan pour les répartir par camion.` : "Les commandes du jour s'afficheront ici."}</p>
+        </div>
+      </div>
+
+      <Panneau id="itineraire" titre="Calculer un itinéraire poids lourd"><Itineraires /></Panneau>
     </>
   );
 }

@@ -428,3 +428,41 @@ details.restants summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .info span { position: absolute; z-index: 5; left: 0; top: 26px; width: 260px; padding: 10px 12px; background: var(--white); border: 1px solid var(--line-strong); border-radius: var(--r); font-size: 13px; line-height: 1.45; color: var(--ink-2); font-weight: 400; }
 .pied-app { max-width: 1120px; margin: 0 auto; padding: 0 32px 48px; }
 @media (max-width: 800px) { .pied-app { padding: 0 16px 40px; } }
+
+/* ---------- Sections repliables ---------- */
+.panneau { border-top: 1px solid var(--line); }
+.panneau:last-of-type { border-bottom: 1px solid var(--line); }
+.panneau > summary { display: flex; align-items: center; justify-content: space-between; min-height: 60px; cursor: pointer; list-style: none; transition: color 0.15s var(--ease); }
+.panneau > summary::-webkit-details-marker { display: none; }
+.panneau > summary h2 { font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+.panneau > summary:hover h2 { color: var(--signal); }
+.panneau > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 2px; }
+.panneau > summary::after { content: ""; width: 8px; height: 8px; margin-right: 4px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(45deg) translate(-2px, -2px); transition: transform 0.2s var(--ease); }
+.panneau[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.panneau-corps { padding: 4px 0 32px; }
+.action-jour { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 20px 24px; margin-bottom: 24px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--white); }
+.action-jour p { margin: 0; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+@media (max-width: 640px) { .action-jour { padding: 16px; } .action-jour .btn { width: 100%; justify-content: center; } }
+.panneau + .barre-outils { margin-top: 24px; }
+
+/* ---------- Ma journée ---------- */
+.journee { margin-bottom: 36px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--white); }
+.journee-ligne { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; }
+.journee-ligne + .journee-ligne { border-top: 1px solid var(--line); }
+.journee-ligne strong { display: block; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+.journee-ligne .muted { display: block; margin-top: 2px; font-size: 14px; }
+.journee-point { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line-strong); display: grid; place-items: center; }
+.journee-ligne[data-fait] .journee-point { border-color: transparent; }
+.journee > .hint { margin: 0; padding: 12px 20px; border-top: 1px solid var(--line); background: var(--bg); border-radius: 0 0 var(--r) var(--r); }
+@media (max-width: 640px) { .journee-ligne { grid-template-columns: 28px 1fr; } .journee-ligne .btn { grid-column: 1 / -1; justify-content: center; } }
+.panneau-etat { margin-left: auto; margin-right: 16px; font-size: 13px; font-weight: 500; color: var(--signal); }
+.options-calcul { margin: 0 0 12px; }
+.options-calcul > summary { cursor: pointer; color: var(--ink-3); font-size: 14px; min-height: 36px; display: flex; align-items: center; }
+.options-calcul > summary:hover { color: var(--ink); }
+
+/* ---------- Planning : écran de travail (liste à gauche qui défile, carte fixe à droite) ---------- */
+.plan-ecran { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 32px; margin-top: 16px; }
+.plan-gauche { height: calc(100dvh - 190px); min-height: 480px; overflow-y: auto; padding-right: 8px; scrollbar-gutter: stable; }
+.plan-carte { height: calc(100dvh - 190px); min-height: 480px; display: grid; grid-template-rows: 1fr auto; gap: 8px; }
+.plan-carte .map { min-height: 0; height: 100% !important; }
+@media (max-width: 960px) { .plan-ecran { grid-template-columns: minmax(0, 1fr); } .plan-gauche { height: auto; overflow: visible; } .plan-carte { height: 45dvh; min-height: 280px; order: -1; } }
